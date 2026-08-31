@@ -24,10 +24,12 @@ import { getScenarioResults } from '../lib/simulationEngine'
 import type { DesignParams, SimulationResult } from '../lib/simulationEngine'
 import scenarios from '../data/scenarios.json'
 
+type NumericMetricKey = 'indoorTemp' | 'solarGain' | 'heatLoss' | 'comfortHours' | 'heatingDemand'
+
 /* ── Metric definitions ───────────────────────────────────────────── */
 const METRICS: {
   label:            string
-  key:              keyof SimulationResult
+  key:              NumericMetricKey
   unit:             string
   format:           (v: number) => string
   improveDirection: 'higher' | 'lower'
@@ -39,7 +41,7 @@ const METRICS: {
   { label: 'Heating Demand', key: 'heatingDemand', unit: 'kWh/day',  format: (v) => v.toFixed(1),                                    improveDirection: 'lower'  },
 ]
 
-function isImproved(key: keyof SimulationResult, dir: 'higher' | 'lower', before: number, after: number): boolean {
+function isImproved(dir: 'higher' | 'lower', before: number, after: number): boolean {
   const THRESH = 0.05
   return dir === 'higher' ? after > before + THRESH : after < before - THRESH
 }
@@ -297,9 +299,9 @@ const WhatIfPanel: FC = () => {
         </div>
 
         {METRICS.map((m) => {
-          const beforeVal = baseline ? ((baseline as Record<string, unknown>)[m.key] as number) : 0
-          const afterVal  = liveResult ? ((liveResult as Record<string, unknown>)[m.key] as number) : beforeVal
-          const improved  = isImproved(m.key, m.improveDirection, beforeVal, afterVal)
+          const beforeVal = baseline ? baseline[m.key] : 0
+          const afterVal  = liveResult ? liveResult[m.key] : beforeVal
+          const improved  = isImproved(m.improveDirection, beforeVal, afterVal)
           const worsened  = !improved && Math.abs(afterVal - beforeVal) >= 0.05
 
           const DeltaIcon = Math.abs(afterVal - beforeVal) < 0.05

@@ -277,6 +277,7 @@ body {
 
 .form-input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 .form-input[type="number"]::-webkit-inner-spin-button,
 .form-input[type="number"]::-webkit-outer-spin-button {

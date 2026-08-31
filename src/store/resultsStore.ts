@@ -3,7 +3,7 @@
  * Written by the SIMULATE action; read by RightPanel.
  */
 import { create } from 'zustand'
-import type { SimulationResult } from '../lib/simulationEngine'
+import type { SimulationResult, ScenarioKey } from '../lib/simulationEngine'
 
 export type ResultStatus = 'idle' | 'ready'
 
@@ -15,7 +15,7 @@ interface ResultsState {
   comfortHours:     number
   heatingDemand:    number
   estimated:        boolean
-  scenarioKey:      string | undefined
+  scenarioKey:      ScenarioKey | undefined
   runCount:         number      // incremented on every SIMULATE — drives animation resets
   replayTemperature: number     // current temperature during 24-hour thermal replay animation
 }

@@ -13,9 +13,11 @@ import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { useUIModalStore } from '../store/uiModalStore'
 import type { SimulationResult } from '../lib/simulationEngine'
 
+type NumericMetricKey = 'indoorTemp' | 'solarGain' | 'heatLoss' | 'comfortHours' | 'heatingDemand'
+
 interface CompareMetric {
   label:            string
-  key:              keyof SimulationResult
+  key:              NumericMetricKey
   unit:             string
   format:           (v: number) => string
   improveDirection: 'higher' | 'lower'
@@ -199,8 +201,8 @@ const CompareModal: FC = () => {
 
         {/* ── Data rows ── */}
         {METRICS.map((metric) => {
-          const beforeValue = (beforeResult as Record<string, unknown>)[metric.key] as number
-          const afterValue  = (afterResult  as Record<string, unknown>)[metric.key] as number
+          const beforeValue = beforeResult[metric.key]
+          const afterValue  = afterResult[metric.key]
           const improved    = isImproved(metric, beforeValue, afterValue)
 
           const delta = metric.improveDirection === 'higher'

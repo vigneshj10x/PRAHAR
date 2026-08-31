@@ -1,8 +1,4 @@
-PS C: \Users\ELCOT\Desktop\thermal - shelter\thermo - shield > git branch - M main
-PS C: \Users\ELCOT\Desktop\thermal - shelter\thermo - shield > git remote add origin https://github.com/<your-username>/<your-repo-name>.git
-PS C: \Users\ELCOT\Desktop\thermal - shelter\thermo - shield > git remote add origin https://github.com/vigneshj10x/Prahar-Thermal_Shield.git
-error: remote origin already exists.
-PS C: \Users\ELCOT\Desktop\thermal - shelter\thermo - shield > import { useEffect, useRef, useState, type FC } from 'react'
+import { useEffect, useRef, useState, type FC } from 'react'
 import { Thermometer, Sun, Wind, TrendingDown, Clock, Flame } from 'lucide-react'
 import { useResultsStore } from '../store/resultsStore'
 import { useDesignStore } from '../store/designStore'

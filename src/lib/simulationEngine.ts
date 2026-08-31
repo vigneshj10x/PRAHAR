@@ -44,7 +44,7 @@ export interface HourlyPoint {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-type ScenarioKey = 'A_baseline' | 'B_improved' | 'C_optimized'
+export type ScenarioKey = 'A_baseline' | 'B_improved' | 'C_optimized'
 
 type ScenariosShape = {
   [K in ScenarioKey]: {
