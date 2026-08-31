@@ -1,0 +1,163 @@
+{
+  "A_baseline": {
+    "meta": {
+      "label": "Baseline",
+      "description": "Standard adobe construction, 50 mm insulation, 14 % south glazing, medium thermal mass. Represents typical ad-hoc shelter construction in Ladakh."
+    },
+    "params": {
+      "shape":        "rectangular",
+      "orientation":  180,
+      "wallMaterial": "adobe",
+      "insulation":   50,
+      "openingRatio": 14,
+      "thermalMass":  "medium"
+    },
+    "results": {
+      "indoorTemp":    -3.4,
+      "solarGain":     186,
+      "heatLoss":      -42,
+      "comfortHours":   2.8,
+      "heatingDemand":  8.4
+    },
+    "hourly": [
+      { "hour":  0, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":  -7.6, "heatFlux": -41 },
+      { "hour":  1, "outdoorTemp": -18.5, "solarRad":   0, "indoorTemp":  -7.9, "heatFlux": -43 },
+      { "hour":  2, "outdoorTemp": -19.0, "solarRad":   0, "indoorTemp":  -8.2, "heatFlux": -44 },
+      { "hour":  3, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":  -8.4, "heatFlux": -45 },
+      { "hour":  4, "outdoorTemp": -19.8, "solarRad":   0, "indoorTemp":  -8.6, "heatFlux": -46 },
+      { "hour":  5, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":  -8.4, "heatFlux": -45 },
+      { "hour":  6, "outdoorTemp": -18.8, "solarRad":   8, "indoorTemp":  -8.2, "heatFlux": -43 },
+      { "hour":  7, "outdoorTemp": -17.2, "solarRad":  55, "indoorTemp":  -7.4, "heatFlux": -38 },
+      { "hour":  8, "outdoorTemp": -15.0, "solarRad": 192, "indoorTemp":  -5.6, "heatFlux": -20 },
+      { "hour":  9, "outdoorTemp": -13.0, "solarRad": 345, "indoorTemp":  -3.2, "heatFlux":   2 },
+      { "hour": 10, "outdoorTemp": -11.2, "solarRad": 455, "indoorTemp":  -0.9, "heatFlux":  18 },
+      { "hour": 11, "outdoorTemp":  -9.8, "solarRad": 515, "indoorTemp":   1.8, "heatFlux":  28 },
+      { "hour": 12, "outdoorTemp":  -8.8, "solarRad": 520, "indoorTemp":   4.1, "heatFlux":  32 },
+      { "hour": 13, "outdoorTemp":  -8.2, "solarRad": 488, "indoorTemp":   5.4, "heatFlux":  30 },
+      { "hour": 14, "outdoorTemp":  -8.5, "solarRad": 415, "indoorTemp":   5.8, "heatFlux":  26 },
+      { "hour": 15, "outdoorTemp":  -9.5, "solarRad": 298, "indoorTemp":   5.1, "heatFlux":  15 },
+      { "hour": 16, "outdoorTemp": -11.0, "solarRad": 142, "indoorTemp":   3.4, "heatFlux":  -5 },
+      { "hour": 17, "outdoorTemp": -13.2, "solarRad":  28, "indoorTemp":   0.8, "heatFlux": -28 },
+      { "hour": 18, "outdoorTemp": -15.2, "solarRad":   0, "indoorTemp":  -2.2, "heatFlux": -40 },
+      { "hour": 19, "outdoorTemp": -16.2, "solarRad":   0, "indoorTemp":  -3.9, "heatFlux": -42 },
+      { "hour": 20, "outdoorTemp": -17.0, "solarRad":   0, "indoorTemp":  -5.4, "heatFlux": -43 },
+      { "hour": 21, "outdoorTemp": -17.6, "solarRad":   0, "indoorTemp":  -6.4, "heatFlux": -43 },
+      { "hour": 22, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":  -6.9, "heatFlux": -42 },
+      { "hour": 23, "outdoorTemp": -18.2, "solarRad":   0, "indoorTemp":  -7.4, "heatFlux": -41 }
+    ]
+  },
+
+  "B_improved": {
+    "meta": {
+      "label": "Improved",
+      "description": "Adobe walls, 100 mm insulation, 10 % south glazing, high thermal mass. Represents careful but low-cost upgrades to the baseline shelter."
+    },
+    "params": {
+      "shape":        "rectangular",
+      "orientation":  180,
+      "wallMaterial": "adobe",
+      "insulation":   100,
+      "openingRatio": 10,
+      "thermalMass":  "high"
+    },
+    "results": {
+      "indoorTemp":    2.1,
+      "solarGain":     164,
+      "heatLoss":      -28,
+      "comfortHours":   8.4,
+      "heatingDemand":  5.2
+    },
+    "hourly": [
+      { "hour":  0, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":  -2.4, "heatFlux": -26 },
+      { "hour":  1, "outdoorTemp": -18.5, "solarRad":   0, "indoorTemp":  -2.7, "heatFlux": -27 },
+      { "hour":  2, "outdoorTemp": -19.0, "solarRad":   0, "indoorTemp":  -3.0, "heatFlux": -28 },
+      { "hour":  3, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":  -3.2, "heatFlux": -29 },
+      { "hour":  4, "outdoorTemp": -19.8, "solarRad":   0, "indoorTemp":  -3.4, "heatFlux": -29 },
+      { "hour":  5, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":  -3.2, "heatFlux": -28 },
+      { "hour":  6, "outdoorTemp": -18.8, "solarRad":   8, "indoorTemp":  -2.8, "heatFlux": -27 },
+      { "hour":  7, "outdoorTemp": -17.2, "solarRad":  55, "indoorTemp":  -1.7, "heatFlux": -22 },
+      { "hour":  8, "outdoorTemp": -15.0, "solarRad": 192, "indoorTemp":   0.3, "heatFlux": -10 },
+      { "hour":  9, "outdoorTemp": -13.0, "solarRad": 345, "indoorTemp":   2.8, "heatFlux":   5 },
+      { "hour": 10, "outdoorTemp": -11.2, "solarRad": 455, "indoorTemp":   5.3, "heatFlux":  16 },
+      { "hour": 11, "outdoorTemp":  -9.8, "solarRad": 515, "indoorTemp":   7.6, "heatFlux":  24 },
+      { "hour": 12, "outdoorTemp":  -8.8, "solarRad": 520, "indoorTemp":   9.3, "heatFlux":  28 },
+      { "hour": 13, "outdoorTemp":  -8.2, "solarRad": 488, "indoorTemp":  10.3, "heatFlux":  26 },
+      { "hour": 14, "outdoorTemp":  -8.5, "solarRad": 415, "indoorTemp":  10.8, "heatFlux":  22 },
+      { "hour": 15, "outdoorTemp":  -9.5, "solarRad": 298, "indoorTemp":  10.3, "heatFlux":  14 },
+      { "hour": 16, "outdoorTemp": -11.0, "solarRad": 142, "indoorTemp":   8.8, "heatFlux":   2 },
+      { "hour": 17, "outdoorTemp": -13.2, "solarRad":  28, "indoorTemp":   6.6, "heatFlux": -14 },
+      { "hour": 18, "outdoorTemp": -15.2, "solarRad":   0, "indoorTemp":   4.0, "heatFlux": -24 },
+      { "hour": 19, "outdoorTemp": -16.2, "solarRad":   0, "indoorTemp":   1.8, "heatFlux": -26 },
+      { "hour": 20, "outdoorTemp": -17.0, "solarRad":   0, "indoorTemp":   0.0, "heatFlux": -27 },
+      { "hour": 21, "outdoorTemp": -17.6, "solarRad":   0, "indoorTemp":  -1.2, "heatFlux": -27 },
+      { "hour": 22, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":  -2.0, "heatFlux": -27 },
+      { "hour": 23, "outdoorTemp": -18.2, "solarRad":   0, "indoorTemp":  -2.2, "heatFlux": -26 }
+    ]
+  },
+
+  "C_optimized": {
+    "meta": {
+      "label": "Optimized",
+      "description": "Rammed-earth walls, 150 mm insulation, 20 % south glazing, high thermal mass. Represents a purpose-designed solar-passive shelter for high-altitude winter."
+    },
+    "params": {
+      "shape":        "rectangular",
+      "orientation":  180,
+      "wallMaterial": "rammed",
+      "insulation":   150,
+      "openingRatio": 20,
+      "thermalMass":  "high"
+    },
+    "results": {
+      "indoorTemp":    7.8,
+      "solarGain":     218,
+      "heatLoss":      -19,
+      "comfortHours":  14.0,
+      "heatingDemand":  2.7
+    },
+    "hourly": [
+      { "hour":  0, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":   3.7, "heatFlux": -17 },
+      { "hour":  1, "outdoorTemp": -18.5, "solarRad":   0, "indoorTemp":   3.3, "heatFlux": -18 },
+      { "hour":  2, "outdoorTemp": -19.0, "solarRad":   0, "indoorTemp":   3.0, "heatFlux": -19 },
+      { "hour":  3, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":   2.7, "heatFlux": -19 },
+      { "hour":  4, "outdoorTemp": -19.8, "solarRad":   0, "indoorTemp":   2.5, "heatFlux": -20 },
+      { "hour":  5, "outdoorTemp": -19.5, "solarRad":   0, "indoorTemp":   2.6, "heatFlux": -19 },
+      { "hour":  6, "outdoorTemp": -18.8, "solarRad":   8, "indoorTemp":   3.0, "heatFlux": -18 },
+      { "hour":  7, "outdoorTemp": -17.2, "solarRad":  55, "indoorTemp":   4.0, "heatFlux": -12 },
+      { "hour":  8, "outdoorTemp": -15.0, "solarRad": 192, "indoorTemp":   5.7, "heatFlux":   2 },
+      { "hour":  9, "outdoorTemp": -13.0, "solarRad": 345, "indoorTemp":   8.3, "heatFlux":  22 },
+      { "hour": 10, "outdoorTemp": -11.2, "solarRad": 455, "indoorTemp":  11.0, "heatFlux":  40 },
+      { "hour": 11, "outdoorTemp":  -9.8, "solarRad": 515, "indoorTemp":  13.5, "heatFlux":  52 },
+      { "hour": 12, "outdoorTemp":  -8.8, "solarRad": 520, "indoorTemp":  15.3, "heatFlux":  56 },
+      { "hour": 13, "outdoorTemp":  -8.2, "solarRad": 488, "indoorTemp":  16.0, "heatFlux":  54 },
+      { "hour": 14, "outdoorTemp":  -8.5, "solarRad": 415, "indoorTemp":  16.3, "heatFlux":  48 },
+      { "hour": 15, "outdoorTemp":  -9.5, "solarRad": 298, "indoorTemp":  15.7, "heatFlux":  36 },
+      { "hour": 16, "outdoorTemp": -11.0, "solarRad": 142, "indoorTemp":  14.3, "heatFlux":  18 },
+      { "hour": 17, "outdoorTemp": -13.2, "solarRad":  28, "indoorTemp":  11.7, "heatFlux":  -2 },
+      { "hour": 18, "outdoorTemp": -15.2, "solarRad":   0, "indoorTemp":   9.0, "heatFlux": -14 },
+      { "hour": 19, "outdoorTemp": -16.2, "solarRad":   0, "indoorTemp":   7.0, "heatFlux": -17 },
+      { "hour": 20, "outdoorTemp": -17.0, "solarRad":   0, "indoorTemp":   5.5, "heatFlux": -18 },
+      { "hour": 21, "outdoorTemp": -17.6, "solarRad":   0, "indoorTemp":   4.7, "heatFlux": -18 },
+      { "hour": 22, "outdoorTemp": -18.0, "solarRad":   0, "indoorTemp":   4.3, "heatFlux": -18 },
+      { "hour": 23, "outdoorTemp": -18.2, "solarRad":   0, "indoorTemp":   4.0, "heatFlux": -17 }
+    ]
+  },
+
+  "climateProfile": {
+    "location": "Leh, Ladakh",
+    "season": "Winter (January)",
+    "altitude": "3,524 m",
+    "ambientTempRange": "–18.0°C to –8.2°C",
+    "solarPotential": "520 W/m² (South façade peak)",
+    "sunshine": "8.5 h/day clear sky direct irradiance",
+    "wind": "3.2 m/s avg (Katabatic NW gusts)",
+    "nightHeatLoss": "–45 W/m² (radiant loss to cold sky)",
+    "solarOpportunity": "08:00–16:00 (high diurnal window)",
+    "designPriorities": [
+      "Maximise direct solar gain via South glazing",
+      "High envelope insulation (R ≥ 3.5 m²K/W)",
+      "High thermal mass to buffer night temp drop",
+      "Minimise North/East infiltration area"
+    ]
+  }
+}
