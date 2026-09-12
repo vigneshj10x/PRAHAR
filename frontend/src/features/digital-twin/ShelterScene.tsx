@@ -16,6 +16,9 @@ import { useDesignStore } from '@/store/designStore'
 import { useResultsStore } from '@/store/resultsStore'
 import { useVisualizationStore } from '@/store/visualizationStore'
 import { getLocationProfile } from '@/data/locations'
+import LocationEnvironment from './environment/LocationEnvironment'
+import { ShelterGeometryRenderer } from './ShelterGeometries'
+
 
 // ─── Theme colors ────────────────────────────────────────────────────────────
 const C = {
@@ -191,206 +194,6 @@ function Arrow({ from, to, color = C.ray, thickness = 0.035 }: ArrowProps) {
   )
 }
 
-// ─── Engineering wireframe overlay ──────────────────────────────────────────
-function WireEdges({ geometry, color = C.edgeHi, threshold = 15 }: { geometry: THREE.BufferGeometry; color?: string; threshold?: number }) {
-  const edges = useMemo(() => new THREE.EdgesGeometry(geometry, threshold), [geometry, threshold])
-  return (
-    <lineSegments geometry={edges}>
-      <lineBasicMaterial color={color} />
-    </lineSegments>
-  )
-}
-
-// ─── Window / glazing panel ──────────────────────────────────────────────────
-interface WinPanelProps {
-  wallW:        number
-  wallH:        number
-  zPos:         number
-  openingRatio: number
-  flip?:        boolean
-}
-
-function WinPanel({ wallW, wallH, zPos, openingRatio, flip = false }: WinPanelProps) {
-  const scale = Math.sqrt(openingRatio / 14)
-  const pW    = Math.min(wallW * 0.84, wallW * 0.58 * scale)
-  const pH    = Math.min(wallH * 0.82, wallH * 0.62 * scale)
-
-  const frameGeom = useMemo(
-    () => new THREE.EdgesGeometry(new THREE.BoxGeometry(pW + 0.07, pH + 0.07, 0.03)),
-    [pW, pH]
-  )
-
-  const rotY = flip ? Math.PI : 0
-
-  return (
-    <group position={[0, 0, zPos]} rotation={[0, rotY, 0]}>
-      {/* Glazing */}
-      <mesh>
-        <planeGeometry args={[pW, pH]} />
-        <meshStandardMaterial
-          color={C.winFill}
-          emissive={C.winFill}
-          emissiveIntensity={0.25}
-          transparent
-          opacity={0.5}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-      {/* Frame */}
-      <lineSegments geometry={frameGeom}>
-        <lineBasicMaterial color={C.winEdge} />
-      </lineSegments>
-    </group>
-  )
-}
-
-// ─── Shelter shapes ──────────────────────────────────────────────────────────
-interface ShelterProps {
-  l:            number
-  w:            number
-  h:            number
-  openingRatio: number
-  wallColor?:   string
-  isSection?:   boolean
-  isTranslucent?: boolean
-}
-
-/** Rectangular box — supports section cutaway */
-function RectShelter({ l, w, h, openingRatio, wallColor = C.wall, isSection = false, isTranslucent = false }: ShelterProps) {
-  const geom = useMemo(() => new THREE.BoxGeometry(w, h, l), [w, h, l])
-
-  return (
-    <group position={[0, h / 2, 0]}>
-      <mesh geometry={geom}>
-        <meshStandardMaterial
-          color={wallColor}
-          roughness={0.8}
-          metalness={0.0}
-          transparent={isSection || isTranslucent}
-          opacity={isSection ? 0.35 : isTranslucent ? 0.45 : 1.0}
-          side={isSection ? THREE.DoubleSide : THREE.FrontSide}
-        />
-      </mesh>
-      <WireEdges geometry={geom} />
-      {/* South face window */}
-      <WinPanel wallW={w} wallH={h} zPos={-l / 2 - 0.01} openingRatio={openingRatio} flip />
-
-      {/* Internal structural floor slab & frame if in Section mode */}
-      {isSection && (
-        <group>
-          <mesh position={[0, -h / 2 + 0.05, 0]}>
-            <boxGeometry args={[w * 0.96, 0.08, l * 0.96]} />
-            <meshStandardMaterial color="#334155" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 0, 0]}>
-            <cylinderGeometry args={[0.06, 0.06, h * 0.95, 8]} />
-            <meshStandardMaterial color="#d97706" />
-          </mesh>
-        </group>
-      )}
-    </group>
-  )
-}
-
-/** Semi-dome — open cylinder base + upper hemisphere */
-function DomeShelter({ l, w, h, openingRatio, wallColor = C.wall, isSection = false, isTranslucent = false }: ShelterProps) {
-  const baseR  = Math.min(w, l) / 2 * 0.95
-  const baseH  = h * 0.45
-  const domeR  = baseR
-
-  const baseGeom  = useMemo(() => new THREE.CylinderGeometry(baseR, baseR, baseH, 20, 1, true), [baseR, baseH])
-  const domeGeom  = useMemo(() => new THREE.SphereGeometry(domeR, 14, 7, 0, Math.PI * (isSection ? 1.0 : 2), 0, Math.PI / 2), [domeR, isSection])
-  const domeEdges = useMemo(() => new THREE.EdgesGeometry(domeGeom, 22), [domeGeom])
-  const diskGeom  = useMemo(() => new THREE.CircleGeometry(baseR, 32), [baseR])
-
-  const scale = Math.sqrt(openingRatio / 14)
-  const pW    = Math.min(baseR * 1.6, baseR * 1.1 * scale)
-  const pH    = Math.min(baseH * 0.78, baseH * 0.55 * scale)
-  const winFrameGeom = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(pW + 0.07, pH + 0.07, 0.03)), [pW, pH])
-
-  return (
-    <group>
-      {/* Base floor disk */}
-      <mesh geometry={diskGeom} position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color={C.roof} roughness={1} />
-      </mesh>
-      {/* Cylindrical walls */}
-      <mesh geometry={baseGeom} position={[0, baseH / 2, 0]}>
-        <meshStandardMaterial
-          color={wallColor}
-          roughness={0.9}
-          side={THREE.DoubleSide}
-          transparent={isSection || isTranslucent}
-          opacity={isSection ? 0.4 : isTranslucent ? 0.45 : 1.0}
-        />
-      </mesh>
-      {/* Dome */}
-      <mesh geometry={domeGeom} position={[0, baseH, 0]}>
-        <meshStandardMaterial
-          color={C.roof}
-          roughness={0.82}
-          side={THREE.DoubleSide}
-          transparent={isSection || isTranslucent}
-          opacity={isSection ? 0.4 : isTranslucent ? 0.45 : 1.0}
-        />
-      </mesh>
-      <lineSegments geometry={domeEdges} position={[0, baseH, 0]}>
-        <lineBasicMaterial color={C.edgeDim} />
-      </lineSegments>
-      {/* South-face opening */}
-      <group position={[0, baseH * 0.5, -(baseR + 0.01)]}>
-        <mesh>
-          <planeGeometry args={[pW, pH]} />
-          <meshStandardMaterial color={C.winFill} emissive={C.winFill} emissiveIntensity={0.2} transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
-        </mesh>
-        <lineSegments geometry={winFrameGeom}>
-          <lineBasicMaterial color={C.winEdge} />
-        </lineSegments>
-      </group>
-    </group>
-  )
-}
-
-/** A-frame — triangular prism */
-function AFrameShelter({ l, w, h, openingRatio, wallColor = C.wall, isSection = false, isTranslucent = false }: ShelterProps) {
-  const geom = useMemo(() => {
-    const shape = new THREE.Shape()
-    shape.moveTo(-w / 2, 0)
-    shape.lineTo(w / 2, 0)
-    shape.lineTo(0, h)
-    shape.closePath()
-    const g = new THREE.ExtrudeGeometry(shape, { depth: l, bevelEnabled: false })
-    g.translate(0, 0, -l / 2)
-    return g
-  }, [w, h, l])
-
-  const scale = Math.sqrt(openingRatio / 14)
-  const pW    = Math.min(w * 0.52, w * 0.36 * scale)
-  const pH    = pW * 0.72
-
-  return (
-    <group>
-      <mesh geometry={geom}>
-        <meshStandardMaterial
-          color={wallColor}
-          roughness={0.9}
-          transparent={isSection || isTranslucent}
-          opacity={isSection ? 0.35 : isTranslucent ? 0.45 : 1.0}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <WireEdges geometry={geom} />
-      <group position={[0, h / 3.2, -l / 2 - 0.01]}>
-        <mesh>
-          <planeGeometry args={[pW, pH]} />
-          <meshStandardMaterial color={C.winFill} emissive={C.winFill} emissiveIntensity={0.2} transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
-        </mesh>
-      </group>
-    </group>
-  )
-}
-
 // ─── Compass Ring ────────────────────────────────────────────────────────────
 function CompassRing({ radius }: { radius: number }) {
   const geom = useMemo(() => new THREE.TorusGeometry(radius, 0.02, 6, 48), [radius])
@@ -541,6 +344,7 @@ function Scene({ controlsRef }: { controlsRef: React.RefObject<OrbitControlsImpl
   const solarGain         = useResultsStore((s) => s.solarGain)
   const mode              = useVisualizationStore((s) => s.mode)
   const viewMode          = useVisualizationStore((s) => s.viewMode)
+  const showEnvironment   = useVisualizationStore((s) => s.showEnvironment)
 
   const loc = getLocationProfile(location)
 
@@ -573,14 +377,17 @@ function Scene({ controlsRef }: { controlsRef: React.RefObject<OrbitControlsImpl
       <directionalLight position={[2.2, height + 6, -11]} intensity={1.35} color={loc.sceneTheme.sunColor} />
       <directionalLight position={[-3, 5, 8]} intensity={0.3} color="#e0f2fe" />
 
+      {/* ── Dynamic Location Environment (Mountains, Trees, Snow/Dust, Terrain) ── */}
+      {showEnvironment && viewMode !== 'top' && (
+        <LocationEnvironment />
+      )}
+
       {/* ── Ground Grid ── */}
       <primitive object={grid} />
 
-      {/* ── Shelter Geometry ── */}
+      {/* ── Shelter Geometry (25 Distinct Shapes) ── */}
       <group rotation={[0, rotY, 0]}>
-        {shape === 'rectangular' && <RectShelter   {...sProps} />}
-        {shape === 'semidome'    && <DomeShelter    {...sProps} />}
-        {shape === 'aframe'      && <AFrameShelter  {...sProps} />}
+        <ShelterGeometryRenderer shape={shape} {...sProps} />
       </group>
 
       {/* ── Visualization Modes ── */}

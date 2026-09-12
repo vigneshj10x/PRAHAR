@@ -10,6 +10,10 @@ import type {
   SimulationResult,
   HourlyReplayPoint,
   ScenarioKey,
+  CandidateDesign,
+  RecommendRequest,
+  VerifyResponse,
+  SimulationRequest,
 } from '@/domain'
 
 export interface ScenarioData {
@@ -47,4 +51,15 @@ export interface SimulationService {
    * Retrieves reference pre-computed scenario data (A_baseline, B_improved, or C_optimized).
    */
   getScenario(key: ScenarioKey): Promise<ScenarioData>
+
+  /**
+   * Evaluates Pareto multi-objective front via the fast ML surrogate model.
+   */
+  recommend(req: RecommendRequest): Promise<CandidateDesign[]>
+
+  /**
+   * Executes high-fidelity numerical physics simulation to verify a candidate design.
+   */
+  verify(params: DesignParams | SimulationRequest): Promise<VerifyResponse>
 }
+

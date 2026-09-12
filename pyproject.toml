@@ -1,0 +1,7 @@
+[tool.pyright]
+include = ["backend", "simulation_engine", "simulation-engine"]
+extraPaths = ["backend", "simulation_engine", "simulation-engine"]
+
+[tool.pyrefly]
+include = ["backend", "simulation_engine", "simulation-engine"]
+extraPaths = ["backend", "simulation_engine", "simulation-engine"]

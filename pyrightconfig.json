@@ -1,0 +1,12 @@
+{
+  "include": [
+    "backend",
+    "simulation_engine",
+    "simulation-engine"
+  ],
+  "extraPaths": [
+    "backend",
+    "simulation_engine",
+    "simulation-engine"
+  ]
+}

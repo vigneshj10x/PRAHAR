@@ -1,34 +1,47 @@
 /**
  * ClimateProfileCard.tsx
  *
- * Compact engineering technical readout showing site climate characteristics
- * and design priorities dynamically for the active location.
+ * High-fidelity engineering technical telemetry readout showing site microclimate
+ * characteristics, Open-Meteo & NASA POWER merged telemetry, and live design priorities.
  *
- * Features collapsible toggle, monospace telemetry rows, and design priority tags.
+ * Features collapsible toggle, monospace telemetry rows, loading skeleton, error handling,
+ * and data source badges.
  */
 import { useState, type FC } from 'react'
-import { MapPin, ChevronDown, ChevronUp, Sun, Wind, Thermometer, ShieldAlert, Sparkles } from 'lucide-react'
-import { useDesignStore } from '@/store/designStore'
-import { getLocationProfile } from '@/data/locations'
+import {
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Sun,
+  Wind,
+  Thermometer,
+  ShieldAlert,
+  Sparkles,
+  Droplets,
+  CloudSnow,
+  Loader2,
+  AlertCircle,
+  Database,
+} from 'lucide-react'
+import { useClimateStore } from '@/store/climateStore'
 
 export const ClimateProfileCard: FC = () => {
   const [collapsed, setCollapsed] = useState(false)
-  const locationId = useDesignStore((s) => s.location)
-  const profile = getLocationProfile(locationId)
+  const { activeProfile, isLoading, error, dataSource, fetchClimateForLocation } = useClimateStore()
+
+  const profile = activeProfile
 
   return (
     <div
       id="climate-profile-card"
       style={{
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: collapsed ? 'auto' : 280,
+        position: 'relative',
+        width: collapsed ? 'auto' : 300,
         maxWidth: 'calc(100% - 16px)',
         background: 'var(--bg-panel)',
         border: '1px solid var(--border-base)',
         borderRadius: 4,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--border-dim)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-dim)',
         zIndex: 20,
         overflow: 'hidden',
         transition: 'all 200ms ease',
@@ -50,8 +63,8 @@ export const ClimateProfileCard: FC = () => {
         }}
         title="Toggle Climate Profile telemetry"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <MapPin size={12} color="var(--solar)" strokeWidth={2} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <MapPin size={12} color="var(--solar)" strokeWidth={2} style={{ flexShrink: 0 }} />
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -60,6 +73,9 @@ export const ClimateProfileCard: FC = () => {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: 'var(--text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {profile.name.toUpperCase()}
@@ -74,26 +90,30 @@ export const ClimateProfileCard: FC = () => {
               color: 'var(--cool)',
               fontWeight: 600,
               border: '1px solid var(--cool)',
+              flexShrink: 0,
             }}
           >
             {profile.altitude}
           </span>
         </div>
 
-        <button
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            padding: 2,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-          aria-label={collapsed ? 'Expand Climate Profile' : 'Collapse Climate Profile'}
-        >
-          {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {isLoading && <Loader2 size={11} className="spin" color="var(--solar)" />}
+          <button
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: 2,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            aria-label={collapsed ? 'Expand Climate Profile' : 'Collapse Climate Profile'}
+          >
+            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+          </button>
+        </div>
       </div>
 
       {/* ── Body (Collapsible) ── */}
@@ -109,6 +129,101 @@ export const ClimateProfileCard: FC = () => {
             overflowY: 'auto',
           }}
         >
+          {/* Loading state indicator */}
+          {isLoading && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 8px',
+                background: 'var(--solar-glow)',
+                border: '1px solid var(--solar)',
+                borderRadius: 2,
+                fontSize: 8,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--solar)',
+              }}
+            >
+              <Loader2 size={10} className="spin" />
+              <span>Querying Open-Meteo & NASA POWER APIs…</span>
+            </div>
+          )}
+
+          {/* Error state */}
+          {error && !isLoading && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                padding: '6px 8px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid #ef4444',
+                borderRadius: 2,
+                fontSize: 8,
+                fontFamily: 'var(--font-mono)',
+                color: '#ef4444',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <AlertCircle size={10} />
+                <span style={{ fontWeight: 700 }}>Telemetry Failure</span>
+              </div>
+              <span style={{ fontSize: 7.5, lineHeight: 1.2 }}>{error}</span>
+              <button
+                onClick={() => fetchClimateForLocation(profile.lat, profile.lon, profile.name, profile.altitudeNum)}
+                style={{
+                  alignSelf: 'flex-start',
+                  background: 'transparent',
+                  border: '1px solid #ef4444',
+                  color: '#ef4444',
+                  padding: '2px 6px',
+                  borderRadius: 2,
+                  fontSize: 7.5,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-mono)',
+                  marginTop: 2,
+                }}
+              >
+                Retry Fetch
+              </button>
+            </div>
+          )}
+
+          {/* Source & Zone Badge */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 7.5,
+              fontFamily: 'var(--font-mono)',
+              padding: '2px 4px',
+              background: 'var(--bg-surface)',
+              borderRadius: 2,
+              border: '1px solid var(--border-dim)',
+            }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>
+              ZONE: <strong style={{ color: 'var(--text-primary)' }}>{profile.zone}</strong>
+            </span>
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                color: 'var(--solar)',
+                fontWeight: 600,
+              }}
+            >
+              <Database size={8} />
+              {dataSource === 'merged'
+                ? 'MERGED (OM + NASA)'
+                : dataSource.toUpperCase()}
+            </span>
+          </div>
+
           {/* Telemetry rows */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {[
@@ -119,7 +234,7 @@ export const ClimateProfileCard: FC = () => {
               },
               {
                 icon: <Sun size={10} color="var(--solar)" />,
-                label: 'Solar Peak',
+                label: 'Solar Insolation',
                 val: profile.solarPotential,
               },
               {
@@ -129,9 +244,27 @@ export const ClimateProfileCard: FC = () => {
               },
               {
                 icon: <Wind size={10} color="var(--text-secondary)" />,
-                label: 'Wind',
+                label: 'Wind Speed',
                 val: profile.wind,
               },
+              ...(profile.humidity !== undefined
+                ? [
+                    {
+                      icon: <Droplets size={10} color="#38bdf8" />,
+                      label: 'Humidity (RH)',
+                      val: `${profile.humidity.toFixed(1)}%`,
+                    },
+                  ]
+                : []),
+              ...(profile.snowfallMm !== undefined && profile.snowfallMm > 0
+                ? [
+                    {
+                      icon: <CloudSnow size={10} color="#e2e8f0" />,
+                      label: 'Snowfall / Depth',
+                      val: `${profile.snowfallMm.toFixed(0)} mm / ${profile.snowDepthCm?.toFixed(0) || 0} cm`,
+                    },
+                  ]
+                : []),
               {
                 icon: <ShieldAlert size={10} color="var(--warn)" />,
                 label: 'Night Loss',
