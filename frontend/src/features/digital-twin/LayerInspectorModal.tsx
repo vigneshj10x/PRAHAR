@@ -25,13 +25,23 @@ import {
 import { useLayerInspectorStore, type LayerId, type InspectorTab } from '@/store/layerInspectorStore'
 import { useDesignStore } from '@/store/designStore'
 import { useResultsStore } from '@/store/resultsStore'
-import { useUIModalStore } from '@/store/uiModalStore'
 import { getLocationProfile } from '@/data/locations'
 
 export const LayerInspectorModal: React.FC = () => {
   const { selectedLayerId, activeTab, isOpen, selectLayer, closeInspector, setActiveTab } =
     useLayerInspectorStore()
-  const openValidation = useUIModalStore((s) => s.openValidation)
+
+  // Keydown Escape handler
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        closeInspector()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, closeInspector])
+
   const {
     insulation,
     wallMaterial,
@@ -39,7 +49,6 @@ export const LayerInspectorModal: React.FC = () => {
     openingRatio,
     width,
     height,
-    length,
     location,
   } = useDesignStore()
 
@@ -59,6 +68,7 @@ export const LayerInspectorModal: React.FC = () => {
     const finishMm = 12
 
     const totalMm = claddingMm + membraneMm + insulationMm + pcmMm + massMm + finishMm
+    const southWallArea = (width * height).toFixed(1)
 
     // Percentages of total envelope
     const pct = {
@@ -99,21 +109,6 @@ export const LayerInspectorModal: React.FC = () => {
 
     const currentMass = matSpecs[wallMaterial] || matSpecs.adobe
 
-    // Thermal resistance per layer (R = d / k in m2-K/W)
-    const rIns = (insulationMm / 1000) / 0.032
-    const rMass = (massMm / 1000) / currentMass.k
-    const rClad = (claddingMm / 1000) / 0.18
-    const rPcm = hasPcm ? (pcmMm / 1000) / 0.18 : 0
-    const rTotal = 0.13 + rClad + rIns + rPcm + rMass + 0.04
-    const uTotal = 1 / rTotal
-
-    // Thermal mass capacity (kJ/m2-K)
-    const massHeatCapacity = ((currentMass.density * currentMass.cp * (massMm / 1000)) / 1000).toFixed(1)
-
-    // Glazing calculation
-    const southWallArea = width * height
-    const glazingArea = ((southWallArea * openingRatio) / 100).toFixed(2)
-
     return {
       claddingMm,
       membraneMm,
@@ -125,13 +120,7 @@ export const LayerInspectorModal: React.FC = () => {
       pct,
       hasPcm,
       currentMass,
-      rIns: rIns.toFixed(2),
-      rMass: rMass.toFixed(2),
-      rTotal: rTotal.toFixed(2),
-      uTotal: uTotal.toFixed(2),
-      massHeatCapacity,
-      glazingArea,
-      southWallArea: southWallArea.toFixed(1),
+      southWallArea,
     }
   }, [insulation, wallMaterial, thermalMass, openingRatio, width, height])
 
@@ -154,7 +143,7 @@ export const LayerInspectorModal: React.FC = () => {
   > = {
     insulation: {
       title: 'Volumetric Thermal Insulation Core',
-      category: 'Envelope Thermal Resistance Barrier',
+      category: 'Envelope Insulation Layer',
       color: '#d97706',
       badge: `${assembly.insulationMm} mm`,
       thicknessText: `${assembly.insulationMm} mm (${(assembly.insulationMm / 10).toFixed(1)} cm)`,
@@ -163,15 +152,15 @@ export const LayerInspectorModal: React.FC = () => {
         'Continuous rigid closed-cell thermal foam core preventing conduction heat loss in sub-zero alpine conditions.',
       keyStats: [
         { label: 'Layer Thickness', value: `${assembly.insulationMm} mm`, sub: `${assembly.pct.insulation}% envelope` },
-        { label: 'Thermal Resistance', value: `R-${assembly.rIns}`, sub: 'm²·K/W' },
-        { label: 'Thermal Conductivity', value: '0.032', sub: 'W/m·K' },
-        { label: 'NBC Cold Zone Rule', value: 'R ≥ 3.50', sub: Number(assembly.rIns) >= 3.5 ? 'COMPLIANT' : 'SUB-OPTIMAL' },
+        { label: 'Thermal Resistance', value: 'Simulation Input', sub: 'Calculated in backend' },
+        { label: 'Thermal Conductivity (λ)', value: '0.032 W/m·K', sub: 'Material specification' },
+        { label: 'Assembly Role', value: 'Thermal Core', sub: 'Continuous barrier' },
       ],
       constraints: [
         {
-          rule: 'Minimum Sub-Zero Thermal Barrier',
-          status: Number(assembly.rIns) >= 3.0 ? 'pass' : 'warn',
-          detail: `Current R-${assembly.rIns} m²K/W ${Number(assembly.rIns) >= 3.0 ? 'meets high-altitude Ladakh envelope standard.' : 'is below recommended R-3.5 for -20°C ambient temperatures.'}`,
+          rule: 'Continuous Insulation Barrier',
+          status: 'pass',
+          detail: 'Positioned outboard of the internal structural envelope to minimize thermal bridging.',
         },
         {
           rule: 'Condensation Prevention (Vapour Retarder)',
@@ -187,7 +176,7 @@ export const LayerInspectorModal: React.FC = () => {
     },
     thermal_mass: {
       title: 'Interior Structural Thermal Mass Shell',
-      category: 'Thermal Capacitance & Sensible Heat Battery',
+      category: 'Sensible Heat Battery & Storage Mass',
       color: '#b45309',
       badge: `${assembly.currentMass.name}`,
       thicknessText: `${assembly.massMm} mm (${(assembly.massMm / 10).toFixed(1)} cm)`,
@@ -196,15 +185,15 @@ export const LayerInspectorModal: React.FC = () => {
         'High-density structural interior lining that stores solar heat gain during daytime and discharges stored warmth during sub-zero night hours.',
       keyStats: [
         { label: 'Layer Thickness', value: `${assembly.massMm} mm`, sub: `${assembly.pct.thermalMass}% envelope` },
-        { label: 'Volumetric Heat Cap.', value: `${assembly.massHeatCapacity}`, sub: 'kJ/m²·K' },
-        { label: 'Material Density', value: `${assembly.currentMass.density}`, sub: 'kg/m³' },
-        { label: 'Thermal Phase Lag', value: `${(assembly.massMm / 20).toFixed(1)} hrs`, sub: 'Peak shift delay' },
+        { label: 'Specific Heat (c_p)', value: `${assembly.currentMass.cp} J/kg·K`, sub: 'Material specification' },
+        { label: 'Material Density', value: `${assembly.currentMass.density} kg/m³`, sub: 'Material specification' },
+        { label: 'Mass Selection', value: assembly.currentMass.name, sub: 'Design input' },
       ],
       constraints: [
         {
-          rule: 'Diurnal Thermal Damping Factor',
+          rule: 'Transient Response Coupling',
           status: 'pass',
-          detail: `Decrement factor μ = 0.25 provides ${(100 - 25).toFixed(0)}% diurnal temperature oscillation damping.`,
+          detail: 'Thermal mass selection influences transient thermal response and diurnal heat retention.',
         },
         {
           rule: 'Direct Solar Exposure Ingress Coupling',
@@ -212,15 +201,15 @@ export const LayerInspectorModal: React.FC = () => {
           detail: 'Thermally coupled with south glazing sunbeam footprint for maximized sensible heat absorption.',
         },
         {
-          rule: 'Dead Load & Seismic Resistance',
+          rule: 'Dead Load & Structural Anchorage',
           status: assembly.currentMass.density > 2000 ? 'warn' : 'pass',
-          detail: `Wall self-weight = ${(assembly.currentMass.density * (assembly.massMm / 1000)).toFixed(0)} kg/m². Ensure foundation anchoring.`,
+          detail: `Wall material density is ${assembly.currentMass.density} kg/m³. Ensure adequate structural foundation anchoring.`,
         },
       ],
     },
     pcm: {
       title: 'Phase Change Material (PCM) Latent Buffer',
-      category: 'Isothermal Latent Heat Storage',
+      category: 'Isothermal Latent Heat Buffer',
       color: '#06b6d4',
       badge: assembly.hasPcm ? 'ACTIVE (22°C Phase Shift)' : 'INACTIVE',
       thicknessText: assembly.hasPcm ? `${assembly.pcmMm} mm` : 'Not fitted',
@@ -228,10 +217,10 @@ export const LayerInspectorModal: React.FC = () => {
       description:
         'Micro-encapsulated organic paraffin latent heat storage medium that melts at 21-23°C to absorb excess daytime solar heat without temperature rise.',
       keyStats: [
-        { label: 'Phase Shift Temp', value: '22.0 °C', sub: 'Latent transition' },
-        { label: 'Latent Heat Capacity', value: '180 kJ/kg', sub: 'Isothermal storage' },
-        { label: 'Enthalpy Window', value: '19°C – 24°C', sub: 'Thermal comfort' },
-        { label: 'Overheating Reduction', value: '-3.8 °C', sub: 'Peak solar chop' },
+        { label: 'Phase Transition Temp', value: '22.0 °C', sub: 'Material specification' },
+        { label: 'Latent Heat Capacity', value: '180 kJ/kg', sub: 'Material specification' },
+        { label: 'Enthalpy Transition Window', value: '19°C – 24°C', sub: 'Thermal comfort' },
+        { label: 'Layer Status', value: assembly.hasPcm ? 'Active' : 'Disabled', sub: 'Design option' },
       ],
       constraints: [
         {
@@ -250,22 +239,22 @@ export const LayerInspectorModal: React.FC = () => {
       title: 'South Solar Glazing Aperture',
       category: 'Direct Passive Solar Heat Harvester',
       color: '#38bdf8',
-      badge: `${openingRatio}% WWR (${assembly.glazingArea} m²)`,
+      badge: `${openingRatio}% South WWR`,
       thicknessText: '28 mm (Double Low-E Argon)',
       pctText: `${openingRatio}% South Wall Area`,
       description:
         'South-oriented high-performance double-glazed solar aperture with argon gas cavity and solar heat gain coating (SHGC = 0.62).',
       keyStats: [
-        { label: 'Aperture Area', value: `${assembly.glazingArea} m²`, sub: `of ${assembly.southWallArea} m² south` },
-        { label: 'Solar Heat Gain (SHGC)', value: '0.62', sub: 'High passive solar' },
-        { label: 'Glazing U-Factor', value: '1.40', sub: 'W/m²·K (Low-E)' },
+        { label: 'Window-to-Wall Ratio', value: `${openingRatio}% WWR`, sub: 'Design input' },
+        { label: 'Solar Heat Gain (SHGC)', value: '0.62', sub: 'Glazing specification' },
+        { label: 'Glazing U-Factor', value: '1.40 W/m²·K', sub: 'Glazing specification' },
         { label: 'Orientation Alignment', value: '180° South', sub: 'Optimal azimuth' },
       ],
       constraints: [
         {
-          rule: 'Solar Aperture to Floor Area Ratio',
-          status: Number(assembly.glazingArea) / (width * length) <= 0.25 ? 'pass' : 'warn',
-          detail: `Glazing is ${((Number(assembly.glazingArea) / (width * length)) * 100).toFixed(1)}% of floor area (recommended 12% – 20% to prevent nocturnal chill).`,
+          rule: 'Solar Aperture Ratio',
+          status: openingRatio <= 25 ? 'pass' : 'warn',
+          detail: `Glazing is ${openingRatio}% of south wall (recommended 12% – 20% to balance daytime gain and nocturnal loss).`,
         },
         {
           rule: 'Nocturnal Insulated Thermal Shutter',
@@ -276,24 +265,24 @@ export const LayerInspectorModal: React.FC = () => {
     },
     solar_beam: {
       title: 'Volumetric Solar Ingress Sunbeam',
-      category: 'Direct Passive Solar Radiation Shaft',
+      category: 'Environmental Solar Visualization',
       color: '#f59e0b',
-      badge: 'ACTIVE SUNBEAM',
-      thicknessText: '4.2 m Volumetric Ingress',
-      pctText: '100% Direct Irradiance Path',
+      badge: 'SOLAR RAYTRACE VISUALIZATION',
+      thicknessText: '3D Sunbeam Geometry',
+      pctText: 'Direct Solar Path Visualization',
       description:
         'The geometric path of direct sunlight entering through the south window aperture at current sun altitude (~42°) and striking the thermal floor mass.',
       keyStats: [
-        { label: 'Sun Altitude Angle', value: '42.3°', sub: 'Local solar noon' },
-        { label: 'Sun Azimuth', value: '185.0°', sub: 'South-South-West' },
-        { label: 'Floor Solar Patch Area', value: `${(Number(assembly.glazingArea) * 1.3).toFixed(2)} m²`, sub: 'Radiant storage' },
-        { label: 'Peak Solar Flux', value: '780 W/m²', sub: 'Ladakh clear sky' },
+        { label: 'Visualization Type', value: 'Solar Raytrace', sub: 'Environmental overlay' },
+        { label: 'Peak Solar Irradiance', value: '780 W/m²', sub: 'Ladakh clear sky DB' },
+        { label: 'Aperture Coupling', value: `${openingRatio}% WWR`, sub: 'South window' },
+        { label: 'Target Surface', value: 'Floor Thermal Mass', sub: 'Sensible capture' },
       ],
       constraints: [
         {
           rule: 'Direct Mass Interception',
           status: 'pass',
-          detail: 'Sunbeam lands directly on the high-density reinforced screed slab for maximum diurnal sensible heat capture.',
+          detail: 'Sunbeam lands directly on the high-density floor slab for passive solar absorption.',
         },
       ],
     },
@@ -301,13 +290,13 @@ export const LayerInspectorModal: React.FC = () => {
       title: 'Multi-Layer Insulated Foundation Assembly',
       category: 'Subgrade Ground Coupling & Base Slab',
       color: '#0f172a',
-      badge: '3-LAYER SLAB',
-      thicknessText: '260 mm Composite Base',
-      pctText: '100% Ground Contact Envelope',
+      badge: 'FOUNDATION SLAB',
+      thicknessText: 'Subgrade Base Assembly',
+      pctText: 'Ground Contact Envelope',
       description:
         'Continuous insulated slab consisting of a subgrade gravel bed, continuous sub-slab rigid XPS thermal foam barrier, and a polished thermal screed mass.',
       keyStats: [
-        { label: 'Sub-slab XPS Insulation', value: `${Math.max(40, Math.round(insulation * 0.4))} mm`, sub: 'Frost break' },
+        { label: 'Sub-slab XPS Insulation', value: 'Design option', sub: 'Subgrade break' },
         { label: 'Screed Thermal Slab', value: '80 mm', sub: 'Direct solar floor' },
         { label: 'Subgrade Bedding', value: '140 mm', sub: 'Compacted gravel' },
         { label: 'Perimeter Frost Skirt', value: '600 mm', sub: 'Sub-zero edge shield' },
@@ -350,6 +339,9 @@ export const LayerInspectorModal: React.FC = () => {
   return (
     <div
       id="layer-inspector-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="layer-inspector-title"
       style={{
         position: 'fixed',
         inset: 0,
@@ -371,7 +363,7 @@ export const LayerInspectorModal: React.FC = () => {
           maxWidth: 820,
           maxHeight: '92vh',
           background: 'var(--bg-surface, #0f172a)',
-          border: '1px solid rgba(217, 119, 6, 0.4)',
+          border: '1px solid var(--border-dim, rgba(217, 119, 6, 0.4))',
           borderRadius: 8,
           boxShadow: '0 16px 48px rgba(0,0,0,0.7), 0 0 24px rgba(217,119,6,0.15)',
           display: 'flex',
@@ -384,7 +376,7 @@ export const LayerInspectorModal: React.FC = () => {
         <div
           style={{
             padding: '12px 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
             background: 'linear-gradient(90deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95))',
             display: 'flex',
             alignItems: 'center',
@@ -409,7 +401,7 @@ export const LayerInspectorModal: React.FC = () => {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
+                <h3 id="layer-inspector-title" style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
                   {currentInfo.title}
                 </h3>
                 <span
@@ -433,19 +425,22 @@ export const LayerInspectorModal: React.FC = () => {
 
           <button
             onClick={closeInspector}
+            aria-label="Close Inspector"
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#94a3b8',
               borderRadius: 4,
-              padding: '5px 8px',
+              minWidth: 44,
+              minHeight: 44,
+              padding: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
 
@@ -771,27 +766,27 @@ export const LayerInspectorModal: React.FC = () => {
               {/* Thermal Mass Storage Metrics Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 <div style={{ background: 'rgba(255,255,255,0.03)', padding: 10, borderRadius: 4, border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Total Thermal Capacity</div>
+                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Material Density (ρ)</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', fontFamily: 'var(--font-mono)' }}>
-                    {assembly.massHeatCapacity} kJ/m²·K
+                    {assembly.currentMass.density} kg/m³
                   </div>
-                  <div style={{ fontSize: 7.5, color: '#38bdf8' }}>High thermal inertia</div>
+                  <div style={{ fontSize: 7.5, color: '#38bdf8' }}>Material specification</div>
                 </div>
 
                 <div style={{ background: 'rgba(255,255,255,0.03)', padding: 10, borderRadius: 4, border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Thermal Phase Lag (Delay)</div>
+                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Thermal Mass Thickness</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', fontFamily: 'var(--font-mono)' }}>
-                    {(assembly.massMm / 20).toFixed(1)} Hours
+                    {assembly.massMm} mm ({thermalMass.toUpperCase()})
                   </div>
-                  <div style={{ fontSize: 7.5, color: '#fbbf24' }}>Releases heat at 22:00 night</div>
+                  <div style={{ fontSize: 7.5, color: '#fbbf24' }}>Design input</div>
                 </div>
 
                 <div style={{ background: 'rgba(255,255,255,0.03)', padding: 10, borderRadius: 4, border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Diurnal Damping Factor (μ)</div>
+                  <div style={{ fontSize: 8.5, color: '#94a3b8' }}>Specific Heat Capacity (c_p)</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', fontFamily: 'var(--font-mono)' }}>
-                    0.24
+                    {assembly.currentMass.cp} J/kg·K
                   </div>
-                  <div style={{ fontSize: 7.5, color: '#10b981' }}>76% fluctuation flattened</div>
+                  <div style={{ fontSize: 7.5, color: '#10b981' }}>Material specification</div>
                 </div>
               </div>
             </div>
@@ -825,14 +820,14 @@ export const LayerInspectorModal: React.FC = () => {
                   <div style={{ background: 'rgba(100, 116, 139, 0.2)', border: '1px solid #64748b', borderRadius: 3, padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8' }}>1. CLADDING</div>
                     <div style={{ fontSize: 7.5, color: '#64748b' }}>{assembly.claddingMm}mm ({assembly.pct.cladding}%)</div>
-                    <div style={{ fontSize: 8.5, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>-14.2°C</div>
+                    <div style={{ fontSize: 8.5, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>{outdoorTemp.toFixed(1)}°C</div>
                   </div>
 
                   {/* Layer 2: Insulation */}
                   <div style={{ background: 'rgba(217, 119, 6, 0.25)', border: '1px solid #d97706', borderRadius: 3, padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: '#fbbf24' }}>2. INSULATION</div>
                     <div style={{ fontSize: 7.5, color: '#f59e0b' }}>{assembly.insulationMm}mm ({assembly.pct.insulation}%)</div>
-                    <div style={{ fontSize: 8.5, color: '#10b981', fontFamily: 'var(--font-mono)' }}>+14.8°C (ΔT 29°C)</div>
+                    <div style={{ fontSize: 8.5, color: '#10b981', fontFamily: 'var(--font-mono)' }}>Thermal Core</div>
                   </div>
 
                   {/* Layer 3: PCM Buffer */}
@@ -840,7 +835,7 @@ export const LayerInspectorModal: React.FC = () => {
                     <div style={{ background: 'rgba(6, 182, 212, 0.25)', border: '1px solid #06b6d4', borderRadius: 3, padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                       <div style={{ fontSize: 8, fontWeight: 700, color: '#22d3ee' }}>3. PCM BUFFER</div>
                       <div style={{ fontSize: 7.5, color: '#06b6d4' }}>{assembly.pcmMm}mm ({assembly.pct.pcm}%)</div>
-                      <div style={{ fontSize: 8.5, color: '#22d3ee', fontFamily: 'var(--font-mono)' }}>+17.5°C</div>
+                      <div style={{ fontSize: 8.5, color: '#22d3ee', fontFamily: 'var(--font-mono)' }}>22.0°C Phase</div>
                     </div>
                   ) : null}
 
@@ -848,7 +843,7 @@ export const LayerInspectorModal: React.FC = () => {
                   <div style={{ background: 'rgba(180, 83, 9, 0.25)', border: '1px solid #b45309', borderRadius: 3, padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: '#fbbf24' }}>4. THERMAL MASS</div>
                     <div style={{ fontSize: 7.5, color: '#d97706' }}>{assembly.massMm}mm ({assembly.pct.thermalMass}%)</div>
-                    <div style={{ fontSize: 8.5, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>+19.2°C</div>
+                    <div style={{ fontSize: 8.5, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>Sensible Storage</div>
                   </div>
 
                   {/* Layer 5: Interior Conditioned Air */}
@@ -861,8 +856,7 @@ export const LayerInspectorModal: React.FC = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 8.5, fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
                   <span>EXTERIOR AMBIENT: {outdoorTemp.toFixed(1)}°C</span>
-                  <span style={{ color: '#10b981' }}>TOTAL ENVELOPE R-VALUE: R-{assembly.rTotal} m²·K/W</span>
-                  <span>INDOOR TARGET: {indoorTemp.toFixed(1)}°C</span>
+                  <span style={{ color: '#38bdf8' }}>SIMULATED INDOOR: {indoorTemp.toFixed(1)}°C</span>
                 </div>
               </div>
 
@@ -870,7 +864,7 @@ export const LayerInspectorModal: React.FC = () => {
               <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 4, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={16} color="#10b981" />
                 <div style={{ fontSize: 8.5, color: '#cbd5e1' }}>
-                  <strong style={{ color: '#10b981' }}>Condensation Check Passed:</strong> The calculated dew-point plane is situated securely within the exterior insulation layer, with zero interstitial moisture risk for the internal thermal mass.
+                  <strong style={{ color: '#10b981' }}>Assembly Design Integrity:</strong> Outboard continuous insulation barrier prevents thermal bridging and protects interior structural mass against condensation accumulation.
                 </div>
               </div>
             </div>
@@ -882,7 +876,7 @@ export const LayerInspectorModal: React.FC = () => {
           {activeTab === 'constraints' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>
-                High-Altitude Extreme Climate Envelope Compliance
+                High-Altitude Extreme Climate Envelope Guidelines
               </div>
 
               {currentInfo.constraints.map((c, i) => (
@@ -918,8 +912,8 @@ export const LayerInspectorModal: React.FC = () => {
               <div
                 style={{
                   marginTop: 6,
-                  background: 'rgba(217, 119, 6, 0.08)',
-                  border: '1px solid rgba(217, 119, 6, 0.35)',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 4,
                   padding: '10px 12px',
                   display: 'flex',
@@ -929,33 +923,30 @@ export const LayerInspectorModal: React.FC = () => {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 9.5, fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <ShieldCheck size={13} color="#f59e0b" />
-                    <span>ANSYS MAPDL FEA Thermal Solver Benchmark</span>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <ShieldCheck size={13} color="#64748b" />
+                    <span>FEA Validation — Planned</span>
                   </div>
-                  <div style={{ fontSize: 8, color: '#94a3b8', marginTop: 2 }}>
-                    Verified 94.7% physics convergence (Δ &lt; 5.3%) against 3D SOLID70 FEA element conduction models.
+                  <div style={{ fontSize: 8, color: '#64748b', marginTop: 2 }}>
+                    External solver integration not connected. Detailed finite element thermal validation benchmark planned for future release.
                   </div>
                 </div>
 
                 <button
-                  onClick={() => {
-                    closeInspector()
-                    openValidation()
-                  }}
+                  disabled
                   style={{
-                    background: 'var(--solar, #f59e0b)',
-                    color: '#0f172a',
-                    border: 'none',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: '#64748b',
+                    border: '1px solid rgba(255,255,255,0.1)',
                     padding: '4px 9px',
                     borderRadius: 3,
                     fontSize: 8.5,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: 'not-allowed',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  View FEA Benchmark ↗
+                  FEA Validation (Planned)
                 </button>
               </div>
             </div>

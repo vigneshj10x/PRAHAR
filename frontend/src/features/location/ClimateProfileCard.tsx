@@ -26,7 +26,7 @@ import {
 import { useClimateStore } from '@/store/climateStore'
 
 export const ClimateProfileCard: FC = () => {
-  const [collapsed, setCollapsed] = useState(false)
+  const [showFullProfile, setShowFullProfile] = useState(false)
   const { activeProfile, isLoading, error, dataSource, fetchClimateForLocation } = useClimateStore()
 
   const profile = activeProfile
@@ -36,7 +36,7 @@ export const ClimateProfileCard: FC = () => {
       id="climate-profile-card"
       style={{
         position: 'relative',
-        width: collapsed ? 'auto' : 300,
+        width: 260,
         maxWidth: 'calc(100% - 16px)',
         background: 'var(--bg-panel)',
         border: '1px solid var(--border-base)',
@@ -48,23 +48,19 @@ export const ClimateProfileCard: FC = () => {
         pointerEvents: 'auto',
       }}
     >
-      {/* ── Header / Toggle Strip ── */}
+      {/* ── Concise Summary Card Header ── */}
       <div
-        onClick={() => setCollapsed(!collapsed)}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '6px 10px',
+          padding: '8px 10px',
           background: 'var(--bg-surface)',
-          borderBottom: collapsed ? 'none' : '1px solid var(--border-dim)',
-          cursor: 'pointer',
-          userSelect: 'none',
+          borderBottom: '1px solid var(--border-dim)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
-        title="Toggle Climate Profile telemetry"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <MapPin size={12} color="var(--solar)" strokeWidth={2} style={{ flexShrink: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <MapPin size={12} color="var(--solar)" strokeWidth={2} />
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -73,59 +69,127 @@ export const ClimateProfileCard: FC = () => {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: 'var(--text-primary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
             }}
           >
-            {profile.name.toUpperCase()}
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 7.5,
-              padding: '1px 4px',
-              borderRadius: 2,
-              background: 'var(--cool-glow)',
-              color: 'var(--cool)',
-              fontWeight: 600,
-              border: '1px solid var(--cool)',
-              flexShrink: 0,
-            }}
-          >
-            {profile.altitude}
+            MICROCLIMATE
           </span>
         </div>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 7.5,
+            padding: '1px 4px',
+            borderRadius: 2,
+            background: 'var(--cool-glow)',
+            color: 'var(--cool)',
+            fontWeight: 700,
+            border: '1px solid var(--cool)',
+          }}
+        >
+          {profile.altitude}
+        </span>
+      </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          {isLoading && <Loader2 size={11} className="spin" color="var(--solar)" />}
-          <button
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: 2,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            aria-label={collapsed ? 'Expand Climate Profile' : 'Collapse Climate Profile'}
-          >
-            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-          </button>
+      {/* ── Summary Grid: LOCATION, CONDITIONS, SOLAR, RISK ── */}
+      <div
+        style={{
+          padding: '8px 10px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          background: 'var(--bg-panel)',
+        }}
+      >
+        {/* LOCATION */}
+        <div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            LOCATION
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-primary)', marginTop: 1 }}>
+            {profile.name.split(',')[0]}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)' }}>
+            {profile.altitude}
+          </div>
+        </div>
+
+        {/* CONDITIONS */}
+        <div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            CONDITIONS
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--cool)', marginTop: 1 }}>
+            {profile.tOutMin}°C → {profile.tOutMax}°C
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)' }}>
+            Wind {typeof profile.wind === 'string' ? profile.wind : `${profile.windSpeed || 3.2} m/s`}
+          </div>
+        </div>
+
+        {/* SOLAR */}
+        <div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--solar)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            SOLAR
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--solar)', marginTop: 1 }}>
+            {typeof profile.solarPotential === 'string' ? profile.solarPotential : `${profile.gSouthValue || 520} W/m²`}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)' }}>
+            {profile.sunshine || '8.5 h/day'}
+          </div>
+        </div>
+
+        {/* RISK */}
+        <div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--warn)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            RISK PROFILE
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, fontWeight: 700, color: 'var(--warn)', marginTop: 1 }}>
+            7-Factor Hazard
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)' }}>
+            {profile.zone}
+          </div>
         </div>
       </div>
 
-      {/* ── Body (Collapsible) ── */}
-      {!collapsed && (
+      {/* ── View Full Profile Expander Toggle ── */}
+      <div style={{ padding: '4px 8px', borderTop: '1px solid var(--border-dim)', background: 'var(--bg-surface)' }}>
+        <button
+          onClick={() => setShowFullProfile(!showFullProfile)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            padding: '3px 0',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--solar)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 8,
+            fontWeight: 700,
+            cursor: 'pointer',
+            letterSpacing: '0.06em',
+          }}
+        >
+          <span>{showFullProfile ? 'HIDE DETAILED TELEMETRY' : 'VIEW FULL PROFILE'}</span>
+          {showFullProfile ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+        </button>
+      </div>
+
+      {/* ── Full Profile Detailed Telemetry (On Demand) ── */}
+      {showFullProfile && (
         <div
           style={{
-            padding: '8px 10px 10px',
+            padding: '8px 10px',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
             background: 'var(--bg-panel)',
-            maxHeight: 'calc(100vh - 280px)',
+            borderTop: '1px solid var(--border-dim)',
+            maxHeight: 260,
             overflowY: 'auto',
           }}
         >

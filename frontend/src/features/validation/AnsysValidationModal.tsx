@@ -107,17 +107,17 @@ export const AnsysValidationModal: React.FC = () => {
                     fontWeight: 700,
                     padding: '2px 6px',
                     borderRadius: 3,
-                    background: 'rgba(16, 185, 129, 0.2)',
-                    color: '#34d399',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    background: 'rgba(217, 119, 6, 0.2)',
+                    color: '#f59e0b',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
-                  SOLID70 3D FEA SOLVER
+                  OFFLINE BENCHMARK SPECIFICATION
                 </span>
               </div>
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>
-                Rigorous Provable Input Equivalence & Outcome Agreement Benchmark Suite
+              <div style={{ fontSize: 9.5, color: '#94a3b8', marginTop: 1, fontFamily: 'var(--font-mono)' }}>
+                APDL SOLID70 Benchmark Suite · External live FEA solver integration planned.
               </div>
             </div>
           </div>

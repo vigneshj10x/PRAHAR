@@ -7,6 +7,20 @@ import type { SimulationResult, ScenarioKey, ResultStatus } from '@/domain'
 
 export type { ResultStatus }
 
+interface SimulatedParams {
+  shape: string
+  length: number
+  width: number
+  height: number
+  orientation: number
+  wallMaterial: string
+  roofMaterial: string
+  insulation: number
+  openingRatio: number
+  thermalMass: string
+  location: string
+}
+
 interface ResultsState {
   status:                    ResultStatus
   indoorTemp:                number
@@ -25,10 +39,11 @@ interface ResultsState {
   verifiedAgainstSurrogate?: boolean
   deltaFromSurrogate?:       number | null
   indoorTempSeries?:         any[]
+  lastSimulatedParams?:      SimulatedParams
 }
 
 interface ResultsActions {
-  setResults:           (r: SimulationResult) => void
+  setResults:           (r: SimulationResult, params?: SimulatedParams) => void
   setReplayTemperature: (temp: number) => void
   reset:                () => void
 }
@@ -53,12 +68,13 @@ const DEFAULTS: ResultsState = {
   verifiedAgainstSurrogate:  false,
   deltaFromSurrogate:        null,
   indoorTempSeries:          undefined,
+  lastSimulatedParams:      undefined,
 }
 
 export const useResultsStore = create<ResultsStore>((set) => ({
   ...DEFAULTS,
 
-  setResults: (r) => {
+  setResults: (r, params) => {
     console.log('[DIAGNOSTIC STEP 5][ResultsStore BEFORE Write]:', { incomingResult: r })
     set(state => {
       const nextState = {
@@ -77,6 +93,7 @@ export const useResultsStore = create<ResultsStore>((set) => ({
         verifiedAgainstSurrogate:  (r as any).verifiedAgainstSurrogate ?? false,
         deltaFromSurrogate:        (r as any).deltaFromSurrogate ?? null,
         indoorTempSeries:          r.indoorTempSeries,
+        lastSimulatedParams:      params || state.lastSimulatedParams,
         runCount:                  state.runCount + 1,
       }
       console.log('[DIAGNOSTIC STEP 5][ResultsStore AFTER Write]:', { nextState })

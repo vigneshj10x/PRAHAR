@@ -318,14 +318,14 @@ export const OptimizeOverlay: FC<OptimizeOverlayProps> = ({
         <div
           style={{
             fontFamily:    'var(--font-mono)',
-            fontSize:      26,
+            fontSize:      22,
             fontWeight:    800,
             color:         'var(--solar)',
             marginBottom:  2,
             letterSpacing: '-0.01em',
           }}
         >
-          {candidatesEvaluated.toLocaleString()}
+          {candidatesEvaluated > 0 ? `${candidatesEvaluated.toLocaleString()} / 3,000` : 'Initializing evaluation...'}
         </div>
         <div
           style={{
@@ -353,7 +353,7 @@ export const OptimizeOverlay: FC<OptimizeOverlayProps> = ({
           <div
             style={{
               height:     '100%',
-              width:      `${Math.min(100, (candidatesEvaluated / 3000) * 100)}%`,
+              width:      candidatesEvaluated > 0 ? `${Math.min(100, Math.max(5, (candidatesEvaluated / 3000) * 100))}%` : '5%',
               background: 'var(--solar)',
               transition: 'width 200ms ease',
             }}

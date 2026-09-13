@@ -2,11 +2,11 @@
  * ParetoCandidateExplorer.tsx
  *
  * Interactive Pareto-optimal design set explorer powered by the fast ML surrogate model.
- * Displays 3-6 non-dominated candidates with a Recharts scatter plot trade-off visualizer
- * and a specification table allowing users to select and verify candidates with high-fidelity physics.
+ * Displays non-dominated candidates with a Recharts scatter plot trade-off visualizer
+ * and specification cards allowing users to apply candidates or verify them with high-fidelity physics.
  */
 
-import { useState, useMemo, type FC } from 'react'
+import { useState, useMemo, useEffect, type FC } from 'react'
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -21,11 +21,13 @@ import {
 import {
   Zap,
   X,
-  Sparkles,
   TrendingUp,
   ShieldCheck,
+  Check,
+  Layers,
 } from 'lucide-react'
 import type { CandidateDesign } from '@/domain'
+import { useDesignStore } from '@/store/designStore'
 
 interface ParetoCandidateExplorerProps {
   candidates: CandidateDesign[]
@@ -37,7 +39,7 @@ interface ParetoCandidateExplorerProps {
   onClose: () => void
 }
 
-type ChartMetric = 'cost_vs_comfort' | 'weight_vs_heatloss' | 'cost_vs_heating'
+type ChartMetric = 'cost_vs_heating' | 'weight_vs_heatloss' | 'cost_vs_comfort'
 
 const ARCHETYPE_COLORS: Record<string, string> = {
   'cand-pareto-01': '#16a34a', // Green - Budget
@@ -47,6 +49,15 @@ const ARCHETYPE_COLORS: Record<string, string> = {
   'cand-pareto-05': '#d97706', // Amber - Passive Solar
   'cand-pareto-06': '#0d9488', // Teal - Balanced
 }
+
+const OBJECTIVES = [
+  { name: 'Heat Loss', unit: 'W/m²', dir: 'MINIMIZE', iconColor: 'var(--cool)' },
+  { name: 'Heating Demand', unit: 'kWh/d', dir: 'MINIMIZE', iconColor: 'var(--warn)' },
+  { name: 'Construction Cost', unit: '₹', dir: 'MINIMIZE', iconColor: 'var(--solar)' },
+  { name: 'Envelope Weight', unit: 'kg', dir: 'MINIMIZE', iconColor: 'var(--text-muted)' },
+  { name: 'Comfort Band (18–24°C)', unit: '%', dir: 'MAXIMIZE', iconColor: 'var(--ok)' },
+  { name: 'Solar Gain', unit: 'W/m²', dir: 'MAXIMIZE', iconColor: 'var(--solar)' },
+]
 
 export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
   candidates,
@@ -60,7 +71,49 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
   const [selectedId, setSelectedId] = useState<string>(
     candidates.length > 0 ? candidates[0].id : ''
   )
-  const [metricView, setMetricView] = useState<ChartMetric>('cost_vs_comfort')
+  const [metricView, setMetricView] = useState<ChartMetric>('cost_vs_heating')
+  const [appliedId, setAppliedId] = useState<string | null>(null)
+
+  // Keydown Escape handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  // Direct design store actions for applying candidate params
+  const setShape = useDesignStore((s) => s.setShape)
+  const setOrientation = useDesignStore((s) => s.setOrientation)
+  const setWallMaterial = useDesignStore((s) => s.setWallMaterial)
+  const setRoofMaterial = useDesignStore((s) => s.setRoofMaterial)
+  const setInsulation = useDesignStore((s) => s.setInsulation)
+  const setOpeningRatio = useDesignStore((s) => s.setOpeningRatio)
+  const setThermalMass = useDesignStore((s) => s.setThermalMass)
+  const setLength = useDesignStore((s) => s.setLength)
+  const setWidth = useDesignStore((s) => s.setWidth)
+  const setHeight = useDesignStore((s) => s.setHeight)
+
+  const handleApplyCandidate = (cand: CandidateDesign) => {
+    const p = cand.params as any
+    if (p.shape) setShape(p.shape)
+    if (p.orientation !== undefined) setOrientation(p.orientation)
+    if (p.wallMaterial) setWallMaterial(p.wallMaterial)
+    if (p.roofMaterial) setRoofMaterial(p.roofMaterial)
+    if (p.insulation !== undefined) setInsulation(p.insulation)
+    if (p.opening !== undefined || p.openingRatio !== undefined) {
+      setOpeningRatio(p.opening ?? p.openingRatio)
+    }
+    if (p.thermalMass) setThermalMass(p.thermalMass)
+    if (p.length) setLength(p.length)
+    if (p.width) setWidth(p.width)
+    if (p.height) setHeight(p.height)
+
+    setAppliedId(cand.id)
+  }
 
   // Transform candidates for Recharts Scatter plot
   const scatterData = useMemo(() => {
@@ -81,9 +134,37 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
         indoorTemp: r.indoorTemp ?? r.meanIndoorTemp ?? 0,
         color: ARCHETYPE_COLORS[c.id] || '#64748b',
         tradeoffNotes: c.tradeoffNotes,
+        rawCandidate: c,
       }
     })
   }, [candidates])
+
+  const selectedCandidateObj = useMemo(() => {
+    return candidates.find((c) => c.id === selectedId) || candidates[0]
+  }, [candidates, selectedId])
+
+  // Factual Trade-off Analysis calculation
+  const tradeoffAnalysis = useMemo(() => {
+    if (!selectedCandidateObj || candidates.length < 2) return null
+    const rSelected = selectedCandidateObj.results as any
+    const avgHeating =
+      candidates.reduce((acc, c) => acc + ((c.results as any).heatingDemand ?? 0), 0) /
+      candidates.length
+    const avgCost =
+      candidates.reduce((acc, c) => acc + ((c.results as any).cost ?? 0), 0) / candidates.length
+    const avgWeight =
+      candidates.reduce((acc, c) => acc + ((c.results as any).weight ?? 0), 0) / candidates.length
+
+    const heatDiff = (rSelected.heatingDemand ?? 0) - avgHeating
+    const costDiff = (rSelected.cost ?? 0) - avgCost
+    const weightDiff = (rSelected.weight ?? 0) - avgWeight
+
+    return {
+      heatDiff,
+      costDiff,
+      weightDiff,
+    }
+  }, [selectedCandidateObj, candidates])
 
   // Chart axes configuration based on selected metricView
   const chartConfig = useMemo(() => {
@@ -92,29 +173,29 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
         return {
           xKey: 'weight',
           yKey: 'heatLoss',
-          xLabel: 'Envelope Weight (kg)',
-          yLabel: 'Fabric Heat Loss (W/m²)',
+          xLabel: 'Envelope Weight (kg) [MINIMIZE]',
+          yLabel: 'Fabric Heat Loss (W/m²) [MINIMIZE]',
           xUnit: ' kg',
           yUnit: ' W/m²',
         }
-      case 'cost_vs_heating':
-        return {
-          xKey: 'cost',
-          yKey: 'heatingDemand',
-          xLabel: 'Construction Cost (₹)',
-          yLabel: 'Heating Demand (kWh/day)',
-          xUnit: ' ₹',
-          yUnit: ' kWh/d',
-        }
       case 'cost_vs_comfort':
-      default:
         return {
           xKey: 'cost',
           yKey: 'comfort',
-          xLabel: 'Construction Cost (₹)',
-          yLabel: 'Thermal Comfort Hours (%)',
+          xLabel: 'Construction Cost (₹) [MINIMIZE]',
+          yLabel: 'Thermal Comfort Band 18–24°C (%) [MAXIMIZE]',
           xUnit: ' ₹',
           yUnit: '%',
+        }
+      case 'cost_vs_heating':
+      default:
+        return {
+          xKey: 'cost',
+          yKey: 'heatingDemand',
+          xLabel: 'Construction Cost (₹) [MINIMIZE]',
+          yLabel: 'Heating Demand (kWh/day) [MINIMIZE]',
+          xUnit: ' ₹',
+          yUnit: ' kWh/d',
         }
     }
   }, [metricView])
@@ -129,24 +210,25 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
             border: '1px solid var(--border-base)',
             borderRadius: 4,
             padding: '8px 12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
             color: 'var(--text-primary)',
-            minWidth: 200,
+            minWidth: 220,
           }}
         >
-          <div style={{ fontWeight: 700, color: d.color, marginBottom: 4 }}>
-            {d.id} · {d.shape}
+          <div style={{ fontWeight: 700, color: d.color, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+            <span>{d.id}</span>
+            <span style={{ fontSize: 8.5, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{d.shape}</span>
           </div>
-          <div style={{ color: 'var(--text-muted)', marginBottom: 6 }}>
-            {d.wallMaterial} ({d.insulation}mm ins.)
+          <div style={{ color: 'var(--text-muted)', marginBottom: 6, fontSize: 9 }}>
+            {String(d.wallMaterial).replace(/_/g, ' ')} ({d.insulation}mm ins.)
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 8px', borderTop: '1px solid var(--border-dim)', paddingTop: 4 }}>
             <div>Cost: <strong>₹{Math.round(d.cost).toLocaleString()}</strong></div>
-            <div>Comfort: <strong>{d.comfort.toFixed(1)}%</strong></div>
+            <div>Heating: <strong>{d.heatingDemand.toFixed(1)} kWh</strong></div>
             <div>Weight: <strong>{Math.round(d.weight).toLocaleString()} kg</strong></div>
-            <div>T_mean: <strong>{d.indoorTemp > 0 ? `+${d.indoorTemp.toFixed(1)}` : d.indoorTemp.toFixed(1)}°C</strong></div>
+            <div>Heat Loss: <strong>{d.heatLoss.toFixed(1)} W/m²</strong></div>
           </div>
         </div>
       )
@@ -159,12 +241,12 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
+        background: 'rgba(15, 23, 42, 0.75)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9998,
-        backdropFilter: 'blur(5px)',
+        backdropFilter: 'blur(6px)',
         padding: 16,
       }}
       onClick={(e) => {
@@ -176,19 +258,19 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-base)',
           borderRadius: 8,
-          width: 980,
+          width: 1060,
           maxWidth: '96vw',
-          maxHeight: '92vh',
+          maxHeight: '94vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
           overflow: 'hidden',
         }}
       >
-        {/* ── Modal Header ── */}
+        {/* ── 1. Modal Header ── */}
         <div
           style={{
-            padding: '14px 20px',
+            padding: '12px 18px',
             borderBottom: '1px solid var(--border-base)',
             display: 'flex',
             alignItems: 'center',
@@ -199,8 +281,8 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 borderRadius: 4,
                 background: 'var(--solar-glow)',
                 border: '1px solid var(--solar)',
@@ -209,7 +291,7 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
                 justifyContent: 'center',
               }}
             >
-              <Zap size={15} color="var(--solar)" />
+              <Zap size={16} color="var(--solar)" />
             </div>
             <div>
               <div
@@ -225,31 +307,32 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
                   gap: 8,
                 }}
               >
-                Pareto-Optimal Design Candidates
+                AI SURROGATE OPTIMIZATION
                 <span
                   style={{
-                    fontSize: 9,
-                    fontWeight: 600,
+                    fontSize: 8.5,
+                    fontWeight: 700,
                     background: 'var(--ok-glow)',
                     color: 'var(--ok)',
                     border: '1px solid var(--ok)',
                     padding: '1px 6px',
                     borderRadius: 3,
+                    letterSpacing: '0.06em',
                   }}
                 >
-                  ML Surrogate Explorer
+                  COMPLETE · {candidates.length} CANDIDATES GENERATED
                 </span>
               </div>
               <div
                 style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9.5,
+                  fontSize: 9,
                   color: 'var(--text-muted)',
                   marginTop: 2,
                 }}
               >
-                Evaluated 3,000 architectural permutations across 6 objectives for{' '}
-                <strong style={{ color: 'var(--text-secondary)' }}>{locationName}</strong>
+                Evaluated 3,000 multi-objective parameter combinations for{' '}
+                <strong style={{ color: 'var(--text-secondary)' }}>{locationName}</strong> climate
               </div>
             </div>
           </div>
@@ -266,209 +349,371 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              minHeight: 44,
+              minWidth: 44,
             }}
             title="Close Explorer"
+            aria-label="Close Explorer"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* ── Requirements Strip ── */}
+        {/* ── 2. Objectives Bar ── */}
         <div
           style={{
-            padding: '8px 20px',
+            padding: '8px 18px',
             background: 'var(--bg-base)',
             borderBottom: '1px solid var(--border-dim)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'var(--text-muted)',
             flexWrap: 'wrap',
-            gap: 12,
+            gap: 8,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span>
-              Budget Ceiling: <strong style={{ color: 'var(--text-primary)' }}>₹{budget.toLocaleString()}</strong>
-            </span>
-            <span>·</span>
-            <span>
-              Weight Limit: <strong style={{ color: 'var(--text-primary)' }}>{weightLimit.toLocaleString()} kg</strong>
-            </span>
-            <span>·</span>
-            <span>
-              Target Personnel: <strong style={{ color: 'var(--text-primary)' }}>{occupants} prs</strong>
-            </span>
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: 'var(--text-faint)' }}>Trade-off View:</span>
-            {(
-              [
-                { key: 'cost_vs_comfort', label: 'Cost vs Comfort' },
-                { key: 'weight_vs_heatloss', label: 'Weight vs Heat Loss' },
-                { key: 'cost_vs_heating', label: 'Cost vs Heating Demand' },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setMetricView(tab.key)}
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 8.5,
-                  fontWeight: 600,
-                  padding: '3px 8px',
-                  borderRadius: 3,
-                  border:
-                    metricView === tab.key
-                      ? '1px solid var(--solar)'
-                      : '1px solid var(--border-dim)',
-                  background:
-                    metricView === tab.key ? 'var(--solar-glow)' : 'var(--bg-surface)',
-                  color:
-                    metricView === tab.key ? 'var(--solar-dim)' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  transition: 'all 150ms ease',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              OBJECTIVES:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {OBJECTIVES.map((obj) => (
+                <div
+                  key={obj.name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border-dim)',
+                    padding: '2px 6px',
+                    borderRadius: 3,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 8,
+                  }}
+                >
+                  <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{obj.name}</span>
+                  <span style={{ fontSize: 7, color: 'var(--text-faint)' }}>({obj.unit})</span>
+                  <span style={{ fontSize: 7, fontWeight: 800, color: obj.dir === 'MINIMIZE' ? 'var(--warn)' : 'var(--ok)' }}>
+                    [{obj.dir}]
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
+            <span>Ceiling: <strong>₹{budget.toLocaleString()}</strong></span>
+            <span>·</span>
+            <span>Limit: <strong>{weightLimit.toLocaleString()}kg</strong></span>
+            <span>·</span>
+            <span>Occupants: <strong>{occupants} prs</strong></span>
           </div>
         </div>
 
-        {/* ── Scrollable Body ── */}
+        {/* ── 3. Main Body Grid ── */}
         <div
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '16px 20px',
+            padding: '14px 18px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16,
+            gap: 14,
           }}
         >
-          {/* ── Recharts Scatter Visualizer ── */}
+          {/* ── Top Row: Pareto Scatter Chart + Selected Candidate Focus ── */}
           <div
             style={{
-              background: 'var(--bg-panel)',
-              border: '1px solid var(--border-dim)',
-              borderRadius: 6,
-              padding: '12px 16px 8px',
+              display: 'grid',
+              gridTemplateColumns: 'minmax(300px, 1fr) 340px',
+              gap: 14,
             }}
           >
+            {/* Pareto Scatter Plot */}
             <div
               style={{
+                background: 'var(--bg-panel)',
+                border: '1px solid var(--border-dim)',
+                borderRadius: 6,
+                padding: '10px 14px 8px',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 8,
+                flexDirection: 'column',
               }}
             >
               <div
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  justifyContent: 'space-between',
+                  marginBottom: 6,
                 }}
               >
-                <TrendingUp size={12} color="var(--solar)" />
-                Pareto Frontier Trade-Off Scatter Map ({chartConfig.xLabel} vs {chartConfig.yLabel})
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <TrendingUp size={12} color="var(--solar)" />
+                  Trade-off visualization
+                </div>
+
+                {/* Projection Selector Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {(
+                    [
+                      { key: 'cost_vs_heating', label: 'Cost vs Heating' },
+                      { key: 'weight_vs_heatloss', label: 'Weight vs Heat Loss' },
+                      { key: 'cost_vs_comfort', label: 'Cost vs Comfort' },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setMetricView(tab.key)}
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 8,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: 3,
+                        border:
+                          metricView === tab.key
+                            ? '1px solid var(--solar)'
+                            : '1px solid var(--border-dim)',
+                        background:
+                          metricView === tab.key ? 'var(--solar-glow)' : 'var(--bg-surface)',
+                        color:
+                          metricView === tab.key ? 'var(--solar)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        minHeight: 28,
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <div style={{ width: '100%', height: 180, position: 'relative' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-dim)" />
+                    <XAxis
+                      type="number"
+                      dataKey={chartConfig.xKey}
+                      name={chartConfig.xLabel}
+                      unit={chartConfig.xUnit}
+                      tick={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, fill: 'var(--text-muted)' }}
+                      stroke="var(--border-base)"
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey={chartConfig.yKey}
+                      name={chartConfig.yLabel}
+                      unit={chartConfig.yUnit}
+                      tick={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, fill: 'var(--text-muted)' }}
+                      stroke="var(--border-base)"
+                    />
+                    <ZAxis range={[140, 140]} />
+                    <Tooltip content={<CustomScatterTooltip />} />
+                    <Scatter
+                      name="Candidates"
+                      data={scatterData}
+                      onClick={(entry: any) => setSelectedId(entry?.id || entry?.payload?.id || '')}
+                      cursor="pointer"
+                    >
+                      {scatterData.map((entry) => (
+                        <Cell
+                          key={`cell-${entry.id}`}
+                          fill={entry.color}
+                          stroke={entry.id === selectedId ? '#ffffff' : '#000000'}
+                          strokeWidth={entry.id === selectedId ? 2.5 : 1}
+                        />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-faint)', marginTop: 4, textAlign: 'right' }}>
+                * 2D projection of 6-objective Pareto set generated via ML surrogate evaluation.
+              </div>
+            </div>
+
+            {/* Selected Candidate Inspector */}
+            {selectedCandidateObj && (
               <div
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 8.5,
-                  color: 'var(--text-muted)',
+                  background: 'var(--bg-panel)',
+                  border: `1.5px solid ${ARCHETYPE_COLORS[selectedCandidateObj.id] || 'var(--solar)'}`,
+                  borderRadius: 6,
+                  padding: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
                 }}
               >
-                Click dot to highlight candidate specification
-              </div>
-            </div>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        background: `${ARCHETYPE_COLORS[selectedCandidateObj.id] || '#64748b'}20`,
+                        color: ARCHETYPE_COLORS[selectedCandidateObj.id] || '#64748b',
+                        border: `1px solid ${ARCHETYPE_COLORS[selectedCandidateObj.id] || '#64748b'}40`,
+                      }}
+                    >
+                      {selectedCandidateObj.id}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                      {(selectedCandidateObj.params as any).shape}
+                    </span>
+                  </div>
 
-            <div style={{ width: '100%', height: 165 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-dim)" />
-                  <XAxis
-                    type="number"
-                    dataKey={chartConfig.xKey}
-                    name={chartConfig.xLabel}
-                    unit={chartConfig.xUnit}
-                    tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--text-muted)' }}
-                    stroke="var(--border-base)"
-                  />
-                  <YAxis
-                    type="number"
-                    dataKey={chartConfig.yKey}
-                    name={chartConfig.yLabel}
-                    unit={chartConfig.yUnit}
-                    tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--text-muted)' }}
-                    stroke="var(--border-base)"
-                  />
-                  <ZAxis range={[120, 120]} />
-                  <Tooltip content={<CustomScatterTooltip />} />
-                  <Scatter
-                    name="Candidates"
-                    data={scatterData}
-                    onClick={(entry: any) => setSelectedId(entry?.id || entry?.payload?.id || '')}
-                    cursor="pointer"
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 7.5,
+                      fontWeight: 700,
+                      color: 'var(--solar)',
+                      background: 'var(--solar-glow)',
+                      padding: '1px 5px',
+                      borderRadius: 2,
+                      border: '1px solid var(--solar)',
+                    }}
                   >
-                    {scatterData.map((entry) => (
-                      <Cell
-                        key={`cell-${entry.id}`}
-                        fill={entry.color}
-                        stroke={entry.id === selectedId ? '#0f172a' : '#ffffff'}
-                        strokeWidth={entry.id === selectedId ? 2.5 : 1}
-                      />
-                    ))}
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
+                    AI SURROGATE PREDICTION
+                  </span>
+                </div>
+
+                {/* Specs */}
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                  Wall: <strong style={{ color: 'var(--text-secondary)' }}>{String((selectedCandidateObj.params as any).wallMaterial).replace(/_/g, ' ')}</strong> · Ins: <strong style={{ color: 'var(--text-secondary)' }}>{(selectedCandidateObj.params as any).insulation}mm</strong> · Roof: <strong style={{ color: 'var(--text-secondary)' }}>{String((selectedCandidateObj.params as any).roofMaterial || 'insulated').replace(/_/g, ' ')}</strong>
+                </div>
+
+                {/* Primary Metrics Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'var(--bg-base)', border: '1px solid var(--border-dim)', borderRadius: 4, padding: 6 }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>HEATING DEMAND</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--warn)' }}>{((selectedCandidateObj.results as any).heatingDemand ?? 0).toFixed(1)} kWh/d</div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>EST COST</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--solar)' }}>₹{Math.round((selectedCandidateObj.results as any).cost ?? 0).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>WEIGHT</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-primary)' }}>{Math.round((selectedCandidateObj.results as any).weight ?? 0).toLocaleString()} kg</div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>FABRIC HEAT LOSS</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--cool)' }}>{Math.abs((selectedCandidateObj.results as any).heatLoss ?? 0).toFixed(1)} W/m²</div>
+                  </div>
+                </div>
+
+                {/* Factual Trade-off Interpretation */}
+                {tradeoffAnalysis && (
+                  <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-dim)', borderRadius: 4, padding: 6, fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 2 }}>WHY THIS DESIGN?</div>
+                    {tradeoffAnalysis.heatDiff < 0 ? (
+                      <div>• Reduces heating demand by {Math.abs(tradeoffAnalysis.heatDiff).toFixed(1)} kWh/d vs pool average.</div>
+                    ) : (
+                      <div>• Increases heating demand by {tradeoffAnalysis.heatDiff.toFixed(1)} kWh/d vs pool average.</div>
+                    )}
+                    {tradeoffAnalysis.costDiff < 0 ? (
+                      <div>• Lower construction cost by ₹{Math.round(Math.abs(tradeoffAnalysis.costDiff)).toLocaleString()}.</div>
+                    ) : (
+                      <div>• Higher construction cost by ₹{Math.round(tradeoffAnalysis.costDiff).toLocaleString()}.</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 'auto' }}>
+                  <button
+                    onClick={() => handleApplyCandidate(selectedCandidateObj)}
+                    className="action-btn primary"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: appliedId === selectedCandidateObj.id ? 'var(--ok-glow)' : 'var(--cool)',
+                      color: appliedId === selectedCandidateObj.id ? 'var(--ok)' : '#ffffff',
+                      border: appliedId === selectedCandidateObj.id ? '1px solid var(--ok)' : 'none',
+                      borderRadius: 4,
+                      padding: '8px 12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      minHeight: 40,
+                      boxShadow: appliedId === selectedCandidateObj.id ? 'none' : '0 2px 6px rgba(2, 132, 199, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {appliedId === selectedCandidateObj.id ? <Check size={14} /> : <Layers size={14} />}
+                    {appliedId === selectedCandidateObj.id ? 'APPLIED TO ACTIVE DESIGN' : 'APPLY TO DESIGN'}
+                  </button>
+
+                  <button
+                    onClick={() => onSelectCandidate(selectedCandidateObj)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: 'var(--bg-surface)',
+                      color: 'var(--solar)',
+                      border: '1px solid var(--solar)',
+                      borderRadius: 4,
+                      padding: '8px 12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      minHeight: 38,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <ShieldCheck size={14} color="var(--solar)" />
+                    <span>VERIFY WITH PHYSICS</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* ── Candidate Set Cards / List ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-              }}
-            >
-              Candidate Design Archetypes ({candidates.length} Available)
+          {/* ── Bottom Section: All Candidate Archetypes Grid ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              ALL OPTIMIZED ARCHETYPES ({candidates.length})
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))',
-                gap: 10,
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 10 }}>
               {candidates.map((cand, idx) => {
                 const isSelected = cand.id === selectedId
                 const p = cand.params as any
                 const r = cand.results as any
                 const color = ARCHETYPE_COLORS[cand.id] || '#64748b'
 
-                // Extract archetype label from tradeoffNotes if formatted
                 const noteParts = (cand.tradeoffNotes || '').split(':')
-                const archetypeBadge =
-                  noteParts.length > 1 ? noteParts[0].trim() : `Candidate ${idx + 1}`
-                const descriptionText =
-                  noteParts.length > 1 ? noteParts.slice(1).join(':').trim() : cand.tradeoffNotes
+                const archetypeBadge = noteParts.length > 1 ? noteParts[0].trim() : `Candidate ${idx + 1}`
 
                 return (
                   <div
@@ -476,222 +721,46 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
                     onClick={() => setSelectedId(cand.id)}
                     style={{
                       background: isSelected ? 'var(--bg-surface)' : 'var(--bg-panel)',
-                      border: isSelected ? `2px solid ${color}` : '1px solid var(--border-base)',
+                      border: isSelected ? `1.5px solid ${color}` : '1px solid var(--border-base)',
                       borderRadius: 6,
-                      padding: '12px 14px',
+                      padding: '10px 12px',
                       cursor: 'pointer',
-                      transition: 'all 150ms ease',
-                      position: 'relative',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 8,
-                      boxShadow: isSelected
-                        ? '0 6px 18px rgba(0,0,0,0.06)'
-                        : '0 1px 3px rgba(0,0,0,0.02)',
+                      gap: 6,
+                      transition: 'all 120ms ease',
                     }}
                   >
-                    {/* Top Row: Candidate ID & Archetype */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 8.5,
-                            fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: 3,
-                            background: `${color}18`,
-                            color: color,
-                            border: `1px solid ${color}40`,
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {archetypeBadge}
-                        </span>
-                        <span
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          {cand.id}
-                        </span>
-                      </div>
-
-                      {isSelected && (
-                        <span
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 8,
-                            fontWeight: 700,
-                            color: 'var(--solar-dim)',
-                            background: 'var(--solar-glow)',
-                            padding: '2px 6px',
-                            borderRadius: 3,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 3,
-                          }}
-                        >
-                          <Sparkles size={9} />
-                          ACTIVE FOCUS
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Architecture Specs */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 9.5,
-                        color: 'var(--text-secondary)',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span style={{ textTransform: 'capitalize' }}>
-                        <strong>{p.shape}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 2, background: `${color}18`, color: color, border: `1px solid ${color}40` }}>
+                        {archetypeBadge}
                       </span>
-                      <span>·</span>
-                      <span>
-                        Wall: <strong>{String(p.wallMaterial).replace(/_/g, ' ')}</strong>
-                      </span>
-                      <span>·</span>
-                      <span>
-                        Roof: <strong>{String(p.roofMaterial || 'insulated').replace(/_/g, ' ')}</strong>
-                      </span>
-                      <span>·</span>
-                      <span>
-                        Ins: <strong>{p.insulation}mm</strong>
-                      </span>
-                      <span>·</span>
-                      <span>
-                        Open: <strong>{p.opening ?? p.openingRatio}%</strong>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {cand.id}
                       </span>
                     </div>
 
-                    {/* Key Numbers Grid */}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(6, 1fr)',
-                        gap: 6,
-                        background: 'var(--bg-base)',
-                        border: '1px solid var(--border-dim)',
-                        borderRadius: 4,
-                        padding: '6px 8px',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          T_MEAN
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {(r.indoorTemp ?? r.meanIndoorTemp ?? 0) > 0 ? `+${(r.indoorTemp ?? r.meanIndoorTemp ?? 0).toFixed(1)}` : (r.indoorTemp ?? r.meanIndoorTemp ?? 0).toFixed(1)}°C
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          COMFORT
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--ok)' }}>
-                          {(r.comfortPercent ?? ((r.comfortHours ?? 0) / 24) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          HEAT LOSS
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--cool)' }}>
-                          {Math.abs(r.heatLoss ?? 0).toFixed(1)}
-                          <span style={{ fontSize: 7.5 }}> W/m²</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          DEMAND
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--warn)' }}>
-                          {(r.heatingDemand ?? 0).toFixed(1)}
-                          <span style={{ fontSize: 7.5 }}> kWh</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          WEIGHT
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {Math.round(r.weight ?? 0).toLocaleString()}
-                          <span style={{ fontSize: 7.5 }}> kg</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          COST
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--solar-dim)' }}>
-                          ₹{Math.round(r.cost ?? 0).toLocaleString()}
-                        </div>
-                      </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, color: 'var(--text-secondary)' }}>
+                      <strong style={{ textTransform: 'capitalize' }}>{p.shape}</strong> · {String(p.wallMaterial).replace(/_/g, ' ')} ({p.insulation}mm)
                     </div>
 
-                    {/* Tradeoff Rationale */}
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-ui)',
-                        fontSize: 9.5,
-                        color: 'var(--text-muted)',
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {descriptionText}
-                    </div>
-
-                    {/* Selection Button */}
-                    <div style={{ marginTop: 'auto', paddingTop: 4 }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelectCandidate(cand)
-                        }}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          background: isSelected ? 'var(--solar)' : 'var(--bg-surface)',
-                          color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                          border: isSelected ? '1px solid var(--solar)' : '1px solid var(--border-base)',
-                          borderRadius: 4,
-                          padding: '7px 10px',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
-                          cursor: 'pointer',
-                          transition: 'all 150ms ease',
-                        }}
-                      >
-                        <ShieldCheck size={13} />
-                        Select & Verify with Physics
-                      </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 3, border: '1px solid var(--border-dim)' }}>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 6.5, color: 'var(--text-muted)' }}>DEMAND</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--warn)' }}>{(r.heatingDemand ?? 0).toFixed(1)}k</div>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 6.5, color: 'var(--text-muted)' }}>COST</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--solar)' }}>₹{Math.round((r.cost ?? 0) / 1000)}k</div>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 6.5, color: 'var(--text-muted)' }}>WEIGHT</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--text-primary)' }}>{Math.round((r.weight ?? 0) / 1000)}t</div>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 6.5, color: 'var(--text-muted)' }}>LOSS</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--cool)' }}>{Math.abs(r.heatLoss ?? 0).toFixed(0)}W</div>
+                      </div>
                     </div>
                   </div>
                 )
@@ -700,22 +769,22 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
           </div>
         </div>
 
-        {/* ── Footer ── */}
+        {/* ── 4. Modal Footer ── */}
         <div
           style={{
-            padding: '10px 20px',
+            padding: '8px 18px',
             borderTop: '1px solid var(--border-dim)',
             background: 'var(--bg-panel)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             fontFamily: 'var(--font-mono)',
-            fontSize: 9,
+            fontSize: 8.5,
             color: 'var(--text-muted)',
           }}
         >
           <div>
-            ISO 13790 / ISO 6946 Validation Seam · Step 1: ML Fast Pareto Selection → Step 2: Numerical Verification
+            Fast Pareto Surrogate Optimization · Objective space: 6D non-dominated sorting
           </div>
           <button
             onClick={onClose}
@@ -725,12 +794,13 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
               borderRadius: 3,
               padding: '4px 10px',
               fontFamily: 'var(--font-mono)',
-              fontSize: 9,
+              fontSize: 8.5,
               color: 'var(--text-secondary)',
               cursor: 'pointer',
+              minHeight: 32,
             }}
           >
-            Cancel
+            Close Explorer
           </button>
         </div>
       </div>
@@ -739,3 +809,4 @@ export const ParetoCandidateExplorer: FC<ParetoCandidateExplorerProps> = ({
 }
 
 export default ParetoCandidateExplorer
+

@@ -1,6 +1,5 @@
-import { Suspense, useState, useEffect, useRef } from 'react'
-import type { FC } from 'react'
-import { RotateCcw, Maximize2, Minimize2, Sun, Mountain } from 'lucide-react'
+import { Suspense, useState, useEffect, useRef, type FC } from 'react'
+import { RotateCcw, Maximize2, Minimize2, Sun, Mountain, Box } from 'lucide-react'
 import { useDesignStore } from '@/store/designStore'
 import { useVisualizationStore } from '@/store/visualizationStore'
 import { useClimateStore } from '@/store/climateStore'
@@ -9,25 +8,24 @@ import { getLocationProfile } from '@/data/locations'
 import ShelterScene from './ShelterScene'
 import VisualizationModeToggle from './VisualizationModeToggle'
 import ClimateProfileCard from '@/features/location/ClimateProfileCard'
-import { RiskAssessmentCard } from '@/features/risk-assessment/RiskAssessmentCard'
 import { SectionLegend } from './SectionLegend'
 import { LayerInspectorModal } from './LayerInspectorModal'
 import { degreesToCompass } from '@/lib/formatters'
 
-const VIEW_MODES: Array<{ id: CameraViewMode; label: string }> = [
-  { id: 'perspective', label: 'Perspective' },
-  { id: 'top',         label: 'Top' },
-  { id: 'south',       label: 'South' },
-  { id: 'section',     label: 'Section' },
+const VIEW_MODES: Array<{ id: CameraViewMode; label: string; tooltip: string }> = [
+  { id: 'perspective', label: 'Perspective', tooltip: '3D Free Orbit Perspective View' },
+  { id: 'top', label: 'Top Plan', tooltip: '2D Top Down Plan View' },
+  { id: 'south', label: 'South Elev', tooltip: 'South Façade Elevation View' },
+  { id: 'section', label: 'Section', tooltip: 'Transverse Architectural Cutaway View' },
 ]
 
 export const CenterPanel: FC = () => {
   const { shape, orientation, length, width, height, location } = useDesignStore()
   const activeProfile = useClimateStore((s) => s.activeProfile)
-  const viewMode          = useVisualizationStore((s) => s.viewMode)
-  const setViewMode       = useVisualizationStore((s) => s.setViewMode)
-  const resetCamera       = useVisualizationStore((s) => s.resetCamera)
-  const showEnvironment   = useVisualizationStore((s) => s.showEnvironment)
+  const viewMode = useVisualizationStore((s) => s.viewMode)
+  const setViewMode = useVisualizationStore((s) => s.setViewMode)
+  const resetCamera = useVisualizationStore((s) => s.resetCamera)
+  const showEnvironment = useVisualizationStore((s) => s.showEnvironment)
   const toggleEnvironment = useVisualizationStore((s) => s.toggleEnvironment)
 
   const panelRef = useRef<HTMLElement>(null)
@@ -97,139 +95,219 @@ export const CenterPanel: FC = () => {
   }
 
   return (
-    <main ref={panelRef} className="panel-center" id="panel-center" aria-label="3D Digital Twin">
+    <main ref={panelRef} className="panel-center" id="panel-center" aria-label="3D Digital Twin Engineering Workspace">
+      {/* ── Viewport Control Toolbar ── */}
+      <div className="viewport-toolbar" id="viewport-toolbar" style={{ flexWrap: 'wrap', gap: 6, padding: '4px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Box size={12} color="var(--solar)" />
+          <span className="section-header" style={{ fontSize: 9.5, letterSpacing: '0.1em' }}>
+            3D Digital Twin
+          </span>
+        </div>
 
-      {/* Viewport toolbar */}
-      <div className="viewport-toolbar" id="viewport-toolbar">
-        <span className="section-header" style={{ marginRight: 6 }}>3D Digital Twin</span>
+        <div style={{ width: 1, height: 16, background: 'var(--border-dim)', margin: '0 4px' }} />
 
-        <div style={{ width: 1, height: 14, background: 'var(--border-dim)', margin: '0 6px' }} />
-
-        {VIEW_MODES.map(({ id, label }) => {
-          const isActive = viewMode === id
-          return (
-            <button
-              key={id}
-              id={`vp-btn-${id}`}
-              onClick={() => setViewMode(id)}
-              className={`viewport-btn ${isActive ? 'active' : ''}`}
-              style={{
-                background: isActive ? 'var(--bg-hover)' : 'transparent',
-                color:      isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                borderColor:isActive ? 'var(--border-bright)' : 'transparent',
-                fontWeight: isActive ? 700 : 500,
-              }}
-            >
-              {label}
-            </button>
-          )
-        })}
+        {/* ── Camera Perspective Segmented Controls ── */}
+        <div
+          role="tablist"
+          aria-label="Camera Perspective Views"
+          style={{
+            display: 'flex',
+            gap: 2,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border-base)',
+            borderRadius: 3,
+            padding: 2,
+          }}
+        >
+          {VIEW_MODES.map(({ id, label, tooltip }) => {
+            const isActive = viewMode === id
+            return (
+              <button
+                key={id}
+                id={`vp-btn-${id}`}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setViewMode(id)}
+                title={tooltip}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 2,
+                  border: isActive ? '1px solid var(--solar)' : '1px solid transparent',
+                  background: isActive ? 'var(--solar-glow)' : 'transparent',
+                  color: isActive ? 'var(--solar)' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 8.5,
+                  fontWeight: isActive ? 700 : 500,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'all 120ms',
+                  outline: 'none',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
 
         <div style={{ flex: 1 }} />
 
-        {/* Visualization mode toggle */}
+        {/* ── Visualization Render Mode Segmented Toggle ── */}
         <VisualizationModeToggle />
 
-        {/* Environment toggle button */}
+        <div style={{ width: 1, height: 16, background: 'var(--border-dim)', margin: '0 4px' }} />
+
+        {/* ── Environment Background Toggle ── */}
         <button
           id="vp-env-toggle"
+          aria-label="Toggle Environment Background Terrain"
           className={`viewport-btn ${showEnvironment ? 'active' : ''}`}
-          title={showEnvironment ? 'Hide Background Environment (Mountains, Trees, Weather)' : 'Show Background Environment'}
+          title={showEnvironment ? 'Hide Background Environment (Mountains, Weather, Terrain)' : 'Show Background Environment'}
+          style={{
+            padding: '3px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            borderRadius: 2,
+            color: showEnvironment ? 'var(--solar)' : 'var(--text-muted)',
+            borderColor: showEnvironment ? 'var(--solar)' : 'var(--border-base)',
+            background: showEnvironment ? 'var(--solar-glow)' : 'var(--bg-panel)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 8.5,
+            fontWeight: showEnvironment ? 700 : 500,
+            cursor: 'pointer',
+            transition: 'all 120ms',
+          }}
+          onClick={toggleEnvironment}
+        >
+          <Mountain size={10} />
+          <span>Env</span>
+        </button>
+
+        {/* ── Reset Camera Target ── */}
+        <button
+          id="vp-reset"
+          aria-label="Reset Camera Target Position"
+          className="viewport-btn"
+          title="Reset camera orientation and target focus"
           style={{
             padding: '3px 7px',
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
-            color: showEnvironment ? 'var(--solar)' : 'var(--text-muted)',
-            borderColor: showEnvironment ? 'var(--solar)' : 'transparent',
-            background: showEnvironment ? 'rgba(217, 119, 6, 0.08)' : 'transparent',
-            fontWeight: showEnvironment ? 700 : 500,
+            borderRadius: 2,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border-base)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
           }}
-          onClick={toggleEnvironment}
-        >
-          <Mountain size={11} />
-          <span>Env</span>
-        </button>
-
-        <div style={{ width: 1, height: 14, background: 'var(--border-dim)', margin: '0 4px' }} />
-
-        <button
-          id="vp-reset"
-          className="viewport-btn"
-          title="Reset camera perspective"
-          style={{ padding: '3px 6px', display: 'flex', alignItems: 'center' }}
           onClick={() => {
             setViewMode('perspective')
             resetCamera()
           }}
         >
-          <RotateCcw size={11} />
+          <RotateCcw size={10} />
         </button>
 
+        {/* ── Browser Fullscreen Toggle ── */}
         <button
-          id="vp-fit"
+          id="vp-fullscreen"
+          aria-label="Toggle Workstation Fullscreen Viewport"
           className="viewport-btn"
-          title={isFullscreen ? 'Exit Full Screen (Esc)' : 'Enter Full Screen'}
+          title={isFullscreen ? 'Exit Full Screen Viewport (Esc)' : 'Enter Full Screen Viewport'}
           style={{
-            padding: '3px 6px',
+            padding: '3px 7px',
             display: 'flex',
             alignItems: 'center',
-            color: isFullscreen ? 'var(--solar)' : 'inherit',
+            borderRadius: 2,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border-base)',
+            color: isFullscreen ? 'var(--solar)' : 'var(--text-muted)',
+            cursor: 'pointer',
           }}
           onClick={toggleFullscreen}
         >
-          {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+          {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
         </button>
       </div>
 
-      {/* ── 3D Canvas area ── */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
-
-        <Suspense fallback={
-          <div style={{
-            width: '100%', height: '100%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 9,
-            color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase',
-          }}>
-            Initialising 3D digital twin…
-          </div>
-        }>
+      {/* ── 3D Viewport Canvas Area ── */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, background: 'var(--bg-base)' }}>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                background: 'var(--bg-base)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <div style={{ color: 'var(--solar)', fontWeight: 700 }}>INITIALIZING 3D DIGITAL TWIN WORKSTATION…</div>
+              <div style={{ fontSize: 8, color: 'var(--text-faint)' }}>Loading WebGL Shader Context & Physics Meshes</div>
+            </div>
+          }
+        >
           <ShelterScene />
         </Suspense>
 
-        {/* ── Section (Cutaway) View Legend & Deep Layer Inspector ── */}
+        {/* ── Section Cutaway Legend & Layer Inspector Overlay Modal ── */}
         <SectionLegend />
         <LayerInspectorModal />
 
-        {/* ── Shape / orientation info badge ── */}
-        <div id="viewport-info" style={{
-          position: 'absolute', top: 8, left: 8,
-          display: 'flex', gap: 12, alignItems: 'center',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-base)',
-          padding: '3px 9px', borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          pointerEvents: 'none',
-        }}>
+        {/* ── Top-Left Viewport Model Telemetry Overlay ── */}
+        <div
+          id="viewport-info"
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            background: 'rgba(13, 18, 28, 0.92)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border-base)',
+            padding: '4px 10px',
+            borderRadius: 3,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
           {[
-            { k: 'SHAPE',  v: shape.toUpperCase() },
-            { k: 'SIZE',   v: `${length}×${width}×${height} m` },
+            { k: 'SHAPE', v: shape.replace('_', ' ').toUpperCase() },
+            { k: 'BOUNDS', v: `${length.toFixed(1)}×${width.toFixed(1)}×${height.toFixed(1)}m` },
             { k: 'ORIENT', v: `${orientation}° ${degreesToCompass(orientation)}` },
-            { k: 'SITE',   v: loc.name.split(',')[0].toUpperCase() },
+            { k: 'SITE', v: `${loc.name.split(',')[0].toUpperCase()} (${loc.altitude}m)` },
           ].map(({ k, v }) => (
-            <span key={k} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
-              {k}&nbsp;<span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{v}</span>
-            </span>
+            <div key={k} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+                {k}:
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {v}
+              </span>
+            </div>
           ))}
         </div>
 
-        {/* ── Top-Right Overlay Cards (Microclimate & Disaster Risk Assessment) ── */}
+        {/* ── Top-Right Climate Profile Overlay Card ── */}
         <div
           style={{
             position: 'absolute',
-            top: 8,
-            right: 8,
+            top: 10,
+            right: 10,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-end',
@@ -239,47 +317,66 @@ export const CenterPanel: FC = () => {
           }}
         >
           <ClimateProfileCard />
-          <RiskAssessmentCard />
         </div>
 
-        {/* ── XYZ coordinate HUD ── */}
-        <div id="viewport-hud" style={{
-          position: 'absolute', bottom: 10, left: 10,
-          display: 'flex', gap: 14, pointerEvents: 'none',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-dim)',
-          borderRadius: 2, padding: '3px 8px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-        }}>
+        {/* ── Bottom-Left XYZ Coordinate Telemetry HUD ── */}
+        <div
+          id="viewport-hud"
+          style={{
+            position: 'absolute',
+            bottom: 10,
+            left: 10,
+            display: 'flex',
+            gap: 12,
+            pointerEvents: 'none',
+            background: 'rgba(13, 18, 28, 0.92)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border-dim)',
+            borderRadius: 3,
+            padding: '4px 9px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            zIndex: 10,
+          }}
+        >
           {[
-            { axis: 'X', val: '0.00', color: '#ef4444' },
-            { axis: 'Y', val: (height / 2).toFixed(2), color: '#16a34a' },
-            { axis: 'Z', val: '0.00', color: '#0284c7' },
-          ].map(c => (
+            { axis: 'X', val: '0.00m', color: '#ef4444' },
+            { axis: 'Y', val: `${(height / 2).toFixed(2)}m`, color: '#16a34a' },
+            { axis: 'Z', val: '0.00m', color: '#0284c7' },
+          ].map((c) => (
             <span key={c.axis} style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, color: c.color, fontWeight: 700 }}>
-              {c.axis}:<span style={{ color: 'var(--text-secondary)', marginLeft: 2, fontWeight: 500 }}>{c.val}</span>
+              {c.axis}:<span style={{ color: 'var(--text-primary)', marginLeft: 3, fontWeight: 600 }}>{c.val}</span>
             </span>
           ))}
         </div>
 
-        {/* ── Sun position HUD ── */}
-        <div id="sun-hud" style={{
-          position: 'absolute', bottom: 10, right: 10,
-          display: 'flex', alignItems: 'center', gap: 10,
-          pointerEvents: 'none',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-dim)',
-          borderRadius: 2, padding: '4px 9px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-        }}>
+        {/* ── Bottom-Right Solar & Environmental Telemetry HUD ── */}
+        <div
+          id="sun-hud"
+          style={{
+            position: 'absolute',
+            bottom: 10,
+            right: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            pointerEvents: 'none',
+            background: 'rgba(13, 18, 28, 0.92)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border-dim)',
+            borderRadius: 3,
+            padding: '4px 10px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            zIndex: 10,
+          }}
+        >
           <Sun size={10} color="var(--solar)" />
           {[
-            { k: 'ALT',  v: `${loc.sceneTheme.sunElevation.toFixed(1)}°` },
-            { k: 'AZI',  v: `${loc.sceneTheme.sunAzimuth.toFixed(0)}°` },
-            { k: 'HOUR', v: '12:00' },
+            { k: 'SOLAR EL', v: `${loc.sceneTheme.sunElevation.toFixed(1)}°` },
+            { k: 'AZIMUTH', v: `${loc.sceneTheme.sunAzimuth.toFixed(0)}°` },
+            { k: 'G_SOUTH', v: typeof loc.gSouth === 'string' ? loc.gSouth : `${loc.gSouthValue || 520} W/m²` },
           ].map(({ k, v }) => (
             <span key={k} style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, color: 'var(--text-muted)' }}>
-              {k}&nbsp;<span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{v}</span>
+              {k}:&nbsp;<span style={{ color: 'var(--solar)', fontWeight: 700 }}>{v}</span>
             </span>
           ))}
         </div>

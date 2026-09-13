@@ -42,7 +42,7 @@ export const LocationSearchBox: FC = () => {
 
   const openMap = useNavigationStore((s) => s.openMap)
 
-  const [isMapExpanded, setIsMapExpanded] = useState(true)
+  const [isMapExpanded, setIsMapExpanded] = useState(false)
   const [localLat, setLocalLat] = useState<number>(selectedLocation.lat)
   const [localLon, setLocalLon] = useState<number>(selectedLocation.lon)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -337,7 +337,7 @@ export const LocationSearchBox: FC = () => {
                 padding: 0,
               }}
             >
-              {isMapExpanded ? 'Collapse' : 'Show'}
+              {isMapExpanded ? 'COLLAPSE MAP ▲' : 'EXPAND MAP ▼'}
             </button>
           </div>
         </div>

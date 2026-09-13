@@ -53,23 +53,8 @@ export const BottomBar: FC = () => {
 
   const [hourlyData, setHourlyData] = useState<HourlyReplayPoint[]>([])
 
-  // 24-Hour Replay collapsible state (saved to localStorage for preference)
-  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('thermo_replay_open')
-      return saved !== null ? saved === 'true' : false
-    } catch {
-      return false
-    }
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('thermo_replay_open', String(isReplayOpen))
-    } catch {
-      // ignore
-    }
-  }, [isReplayOpen])
+  // 24-Hour Replay collapsible state (Defaults to CLOSED on initial load for maximum 3D Viewport height)
+  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false)
 
   // Arrow key hotkeys: ArrowUp to expand replay, ArrowDown to collapse
   useEffect(() => {
@@ -171,7 +156,19 @@ export const BottomBar: FC = () => {
       } : designParams.location,
     }
     const result = await service.getResults(params)
-    setResults(result)
+    setResults(result, {
+      shape: params.shape ?? designParams.shape,
+      length: params.length ?? designParams.length,
+      width: params.width ?? designParams.width,
+      height: params.height ?? designParams.height,
+      orientation: params.orientation ?? designParams.orientation,
+      wallMaterial: params.wallMaterial ?? designParams.wallMaterial,
+      roofMaterial: params.roofMaterial ?? designParams.roofMaterial,
+      insulation: params.insulation ?? designParams.insulation,
+      openingRatio: params.openingRatio ?? designParams.openingRatio,
+      thermalMass: params.thermalMass ?? designParams.thermalMass,
+      location: typeof params.location === 'string' ? params.location : designParams.location,
+    })
   }
 
   /* ── AUTO-OPTIMIZE handler (Fast ML Surrogate Pareto Recommendation) ── */
@@ -338,22 +335,48 @@ export const BottomBar: FC = () => {
     openReport()
   }
 
+  /* ── Dynamic Primary CTA Emphasis Derivation ── */
+  const lastSimulatedParams = useResultsStore((s) => s.lastSimulatedParams)
+  const runCount = useResultsStore((s) => s.runCount)
+  const verifiedAgainstSurrogate = useResultsStore((s) => s.verifiedAgainstSurrogate)
+
+  const isStale = status === 'ready' && !!lastSimulatedParams && (
+    designParams.shape !== lastSimulatedParams.shape ||
+    designParams.length !== lastSimulatedParams.length ||
+    designParams.width !== lastSimulatedParams.width ||
+    designParams.height !== lastSimulatedParams.height ||
+    designParams.orientation !== lastSimulatedParams.orientation ||
+    designParams.wallMaterial !== lastSimulatedParams.wallMaterial ||
+    designParams.roofMaterial !== lastSimulatedParams.roofMaterial ||
+    designParams.insulation !== lastSimulatedParams.insulation ||
+    designParams.openingRatio !== lastSimulatedParams.openingRatio ||
+    designParams.thermalMass !== lastSimulatedParams.thermalMass
+  )
+
+  const isSimulatePrimary = status === 'idle' || isStale || runCount === 0
+  const isOptimizePrimary = status === 'ready' && !isStale && !optimize.candidatesEvaluated
+  const isReportPrimary = verifiedAgainstSurrogate && !isStale
+
   /* ── Status strip content ─────────────────────────────────────── */
   const statusText =
     status === 'idle'
-      ? 'IDLE — press SIMULATE to run'
-      : estimated
+      ? 'IDLE — PRESS SIMULATE TO RUN'
+      : isStale
+        ? 'SIMULATION OUTDATED'
+        : estimated
         ? `ESTIMATED · ${designParams.location.toUpperCase()}`
         : `EXACT MATCH · ${scenarioKey ?? '—'}`
 
   const StatusIcon =
-    status === 'idle'    ? null :
-    estimated            ? AlertCircle :
-                           CheckCircle2
+    status === 'idle' ? null :
+    isStale           ? AlertCircle :
+    estimated         ? AlertCircle :
+                        CheckCircle2
 
   const statusColor =
-    status === 'idle' ? 'var(--text-muted)'  :
-    estimated         ? 'var(--solar)'        :
+    status === 'idle' ? 'var(--text-muted)' :
+    isStale           ? 'var(--solar)'       :
+    estimated         ? 'var(--solar)'       :
                         'var(--ok)'
 
   return (
@@ -372,114 +395,233 @@ export const BottomBar: FC = () => {
       )}
 
       {/* ── Row 2: action buttons + status ──────────────────────────── */}
-      <div className="bottombar-btns">
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 8.5,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          marginRight: 6,
-          flexShrink: 0,
-        }}>
-          Actions
-        </span>
-
-        {/* SIMULATE — primary, wired */}
+      <div className="bottombar-btns" style={{ height: 44, minHeight: 44, display: 'flex', alignItems: 'center', padding: '0 10px', background: 'var(--bg-panel)', gap: 4, flexWrap: 'nowrap', overflowX: 'auto' }}>
+        {/* GROUP 1 — CORE */}
         <button
           id="btn-simulate"
-          className="action-btn primary"
+          className={`action-btn ${isSimulatePrimary ? 'primary' : ''}`}
           onClick={handleSimulate}
-        >
-          <Play size={10} />
-          Simulate
-        </button>
-
-        {/* Action buttons */}
-        {[
-          { id: 'btn-optimize',   label: 'Auto-Optimize', icon: <Zap size={10} />, handler: handleAutoOptimize },
-          { id: 'btn-compare',    label: 'Compare',       icon: <GitCompare size={10} />, handler: handleCompare },
-          { id: 'btn-whatif',     label: 'What-If',       icon: <HelpCircle size={10} />, handler: handleWhatIf },
-          { id: 'btn-report',     label: 'Report',        icon: <FileText size={10} />, handler: handleReport },
-          { id: 'btn-validation', label: 'FEA Validation', icon: <Cpu size={10} />, handler: openValidation },
-        ].map(a => (
-          <button key={a.id} id={a.id} className="action-btn" onClick={a.handler}>
-            {a.icon}
-            {a.label}
-          </button>
-        ))}
-
-        {/* Vertical divider */}
-        <div style={{ width: 1, height: 16, background: 'var(--border-dim)', margin: '0 3px' }} />
-
-        {/* 24-Hour Replay Dropdown / Toggle Button with Up/Down Arrow */}
-        <button
-          id="btn-toggle-replay"
-          className={`action-btn ${isReplayOpen ? 'active' : ''}`}
-          onClick={() => setIsReplayOpen(prev => !prev)}
-          title={isReplayOpen ? "Collapse 24h Replay (Press ↓ Arrow)" : "Expand 24h Replay (Press ↑ Arrow)"}
           style={{
-            borderColor: isReplayOpen ? 'var(--solar)' : 'var(--border-base)',
-            color: isReplayOpen ? 'var(--solar)' : 'var(--text-secondary)',
-            background: isReplayOpen ? 'rgba(217, 119, 6, 0.09)' : 'var(--bg-surface)',
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 6,
+            minHeight: 36,
+            padding: '0 14px',
+            background: isSimulatePrimary ? 'var(--cool)' : 'var(--bg-surface)',
+            color: isSimulatePrimary ? '#ffffff' : 'var(--text-secondary)',
+            border: isSimulatePrimary ? 'none' : '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 10.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: isSimulatePrimary ? 700 : 600,
+            cursor: 'pointer',
+            boxShadow: isSimulatePrimary ? '0 2px 6px rgba(2, 132, 199, 0.35)' : 'none',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+          title={isStale ? "Design changed — Click to re-run simulation" : "Run transient thermal physics simulation"}
+        >
+          <Play size={12} fill={isSimulatePrimary ? "#ffffff" : "currentColor"} />
+          <span>SIMULATE</span>
+        </button>
+
+        <div style={{ width: 1, height: 18, background: 'var(--border-dim)', margin: '0 2px', flexShrink: 0 }} />
+
+        {/* GROUP 2 — DECISION SUPPORT */}
+        <button
+          id="btn-optimize"
+          onClick={handleAutoOptimize}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 11px',
+            background: isOptimizePrimary ? 'var(--solar)' : 'var(--bg-surface)',
+            color: isOptimizePrimary ? '#000000' : 'var(--text-secondary)',
+            border: isOptimizePrimary ? 'none' : '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 10.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: isOptimizePrimary ? 700 : 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            boxShadow: isOptimizePrimary ? '0 2px 6px rgba(217, 119, 6, 0.35)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+          title="Run fast ML surrogate Pareto search across 3,000 design permutations"
+        >
+          <Zap size={12} color={isOptimizePrimary ? "#000000" : "var(--solar)"} />
+          <span>AUTO-OPTIMIZE</span>
+        </button>
+
+        <button
+          id="btn-compare"
+          onClick={handleCompare}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 10px',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 10,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease'
+          }}
+          title="Compare baseline vs optimized candidate design side-by-side"
+        >
+          <GitCompare size={12} />
+          <span>COMPARE</span>
+        </button>
+
+        <button
+          id="btn-whatif"
+          onClick={handleWhatIf}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 10px',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 10,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease'
+          }}
+          title="Live parameter sensitivity analysis"
+        >
+          <HelpCircle size={12} />
+          <span>WHAT-IF</span>
+        </button>
+
+        <div style={{ width: 1, height: 18, background: 'var(--border-dim)', margin: '0 2px', flexShrink: 0 }} />
+
+        {/* GROUP 3 — OUTPUT */}
+        <button
+          id="btn-report"
+          onClick={handleReport}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 11px',
+            background: isReportPrimary ? 'var(--ok)' : 'var(--bg-surface)',
+            color: isReportPrimary ? '#000000' : 'var(--text-secondary)',
+            border: isReportPrimary ? 'none' : '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 10.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: isReportPrimary ? 700 : 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            boxShadow: isReportPrimary ? '0 2px 6px rgba(22, 163, 74, 0.35)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+          title="Generate comprehensive technical defense engineering report"
+        >
+          <FileText size={12} color={isReportPrimary ? "#000000" : "currentColor"} />
+          <span>REPORT</span>
+        </button>
+
+        <div style={{ width: 1, height: 18, background: 'var(--border-dim)', margin: '0 2px', flexShrink: 0 }} />
+
+        {/* GROUP 4 — ADVANCED */}
+        <button
+          id="btn-validation"
+          onClick={openValidation}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 9px',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border-dim)',
+            borderRadius: 4,
+            fontSize: 9.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease'
+          }}
+          title="View ANSYS APDL offline validation & benchmark specification"
+        >
+          <Cpu size={11} color="var(--text-muted)" />
+          <span>FEA BENCHMARK</span>
+        </button>
+
+        {/* 24-Hour Replay Toggle Drawer Button */}
+        <button
+          id="btn-toggle-replay"
+          onClick={() => setIsReplayOpen(prev => !prev)}
+          title={isReplayOpen ? "Collapse 24h Replay analysis drawer" : "Expand 24h Replay analysis drawer"}
+          style={{
+            minHeight: 36,
+            border: `1px solid ${isReplayOpen ? 'var(--solar)' : 'var(--border-dim)'}`,
+            color: isReplayOpen ? 'var(--solar)' : 'var(--text-secondary)',
+            background: isReplayOpen ? 'rgba(217, 119, 6, 0.14)' : 'var(--bg-surface)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '0 9px',
+            borderRadius: 4,
+            fontSize: 9.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
           {isReplayOpen ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
-          <span>24h Replay</span>
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 7.5,
-            color: isReplayOpen ? 'var(--solar)' : 'var(--text-muted)',
-            padding: '1px 3px',
-            border: `1px solid ${isReplayOpen ? 'rgba(217,119,6,0.3)' : 'var(--border-dim)'}`,
-            borderRadius: 2,
-            lineHeight: 1,
-            textTransform: 'uppercase',
-          }}>
-            {isReplayOpen ? '↓' : '↑'}
+          <span>
+            {status === 'ready'
+              ? `▶ 24H REPLAY · 12:00 · ${indoorTemp >= 0 ? `+${indoorTemp.toFixed(1)}` : indoorTemp.toFixed(1)}°C`
+              : '▶ 24H REPLAY'}
           </span>
         </button>
 
         <div style={{ flex: 1 }} />
 
-        {/* Prototype disclaimer */}
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 8,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.04em',
-          marginRight: 10,
-          opacity: 0.85,
-        }}>
-          * Prototype simulation data (pre-computed/interpolated). Not yet CFD/ANSYS validated.
-        </span>
-
         {/* Dynamic status strip */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {StatusIcon
-            ? <StatusIcon size={9} color={statusColor} />
+            ? <StatusIcon size={10} color={statusColor} />
             : <div className="status-dot idle" />
           }
           <span style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 8.5,
+            fontSize: 9.5,
             color: statusColor,
-            letterSpacing: '0.08em',
-            transition: 'color 250ms',
+            fontWeight: 600,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase'
           }}>
             {statusText}
           </span>
-          <div style={{ width: 1, height: 10, background: 'var(--border-dim)', margin: '0 4px' }} />
+          <div style={{ width: 1, height: 12, background: 'var(--border-dim)', margin: '0 4px' }} />
           <span style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 8.5,
-            color: 'var(--text-faint)',
-            letterSpacing: '0.06em',
+            fontSize: 9,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.04em',
           }}>
-            BUILD 2026.08.31
+            VER 1.0.0
           </span>
         </div>
       </div>

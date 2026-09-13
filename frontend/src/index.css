@@ -2,57 +2,61 @@
 
 @import "tailwindcss";
 
-/* ─── Design Tokens (High-Precision Engineering Light Theme) ───────────────── */
+/* ─── Google Fonts loaded via <link> in index.html ─────────────────────────── */
+
+@import "tailwindcss";
+
+/* ─── Master Design Tokens (Dark Defense Engineering Workstation) ────────── */
 :root {
-  /* Backgrounds */
-  --bg-base:       #f1f5f9;
-  --bg-surface:    #ffffff;
-  --bg-panel:      #f8fafc;
-  --bg-hover:      #e2e8f0;
-  --bg-input:      #ffffff;
+  /* Surface Elevation System */
+  --bg-base:        #080b10; /* Deepest workspace backdrop */
+  --bg-panel:       #0d121c; /* Sidebar and panel background */
+  --bg-surface:     #131a28; /* Cards and elevated panels */
+  --bg-elevated:    #1a2436; /* Modals, dropdown menus, popovers */
+  --bg-hover:       #212e46; /* Interactive hover state */
+  --bg-input:       #101724; /* Form input fields */
+  --bg-active:      #2a3b5a; /* Selected item / pressed state */
 
-  /* Borders */
-  --border-dim:    #e2e8f0;
-  --border-base:   #cbd5e1;
-  --border-bright: #94a3b8;
+  /* Structural Borders */
+  --border-dim:     #172030; /* Subdued divider lines */
+  --border-base:    #212e46; /* Standard panel and card borders */
+  --border-bright:  #34486d; /* Active borders and focus rings */
+  --border-accent:  #0284c7; /* Engineering highlight border */
 
-  /* Text */
-  --text-primary:  #0f172a;
-  --text-secondary:#334155;
-  --text-muted:    #64748b;
-  --text-faint:    #94a3b8;
+  /* High-Contrast Typography */
+  --text-primary:   #f8fafc; /* Headings and key readouts (Slate 50) */
+  --text-secondary: #cbd5e1; /* Body copy and labels (Slate 300) */
+  --text-muted:     #8094b0; /* Metadata and units (Slate 400/500) */
+  --text-faint:     #475569; /* Disabled states and subtle gridlines */
 
-  /* Accent — Solar / Heat */
-  --solar:         #d97706;
-  --solar-dim:     #b45309;
-  --solar-glow:    rgba(217,119,6,0.10);
+  /* Engineering Telemetry & Status Accents */
+  --solar:          #d97706; /* Solar irradiance, sun peak (Amber 600) */
+  --solar-dim:      #b45309;
+  --solar-glow:     rgba(217, 119, 6, 0.15);
 
-  /* Accent — Cool / Heat-loss */
-  --cool:          #0284c7;
-  --cool-dim:      #0369a1;
-  --cool-glow:     rgba(2,132,199,0.10);
+  --cool:           #0284c7; /* Heat loss, sub-zero cold (Sky 600) */
+  --cool-dim:       #0369a1;
+  --cool-glow:      rgba(2, 132, 199, 0.15);
 
-  /* Accent — OK / Comfort */
-  --ok:            #16a34a;
-  --ok-glow:       rgba(22,163,74,0.10);
+  --ok:             #16a34a; /* Verified simulation state (Green 600) */
+  --ok-glow:        rgba(22, 163, 74, 0.15);
 
-  /* Warn / Heating */
-  --warn:          #ea580c;
-  --warn-glow:     rgba(234,88,12,0.10);
+  --warn:           #ea580c; /* Heating demand, wind chill alert (Orange 600) */
+  --warn-glow:      rgba(234, 88, 12, 0.15);
 
-  /* Danger */
-  --danger:        #dc2626;
+  --danger:         #dc2626; /* Frostbite hazard, GLOF alert (Red 600) */
+  --danger-glow:    rgba(220, 38, 38, 0.15);
 
-  /* Typography */
-  --font-ui:       'Inter', system-ui, sans-serif;
-  --font-mono:     'IBM Plex Mono', 'Fira Code', monospace;
+  /* Typography Fonts */
+  --font-ui:        'Inter', system-ui, sans-serif;
+  --font-mono:      'IBM Plex Mono', 'Fira Code', monospace;
 
-  /* Layout */
-  --panel-pad:     10px;
-  --topbar-h:      46px;
-  --bottombar-h:   86px;
-  --left-w:        280px;
-  --right-w:       272px;
+  /* Shell Dimensions */
+  --panel-pad:      10px;
+  --topbar-h:       44px;
+  --bottombar-h:    44px;
+  --left-w:         300px;
+  --right-w:        300px;
 }
 
 /* ─── Reset ─────────────────────────────────────────────────────────────────── */
@@ -62,9 +66,6 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-}
-
-body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-ui);
@@ -73,37 +74,37 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar        { width: 4px; height: 4px; }
-::-webkit-scrollbar-track  { background: transparent; }
+/* ─── Scrollbars ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: var(--bg-panel); }
 ::-webkit-scrollbar-thumb  { background: var(--border-base); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
 
-/* ─── Typography ─────────────────────────────────────────────────────────────── */
+/* ─── Typography Utility Classes ────────────────────────────────────────────── */
 .label-mono {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
 }
 
 .section-header {
   font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-/* ─── App Shell ──────────────────────────────────────────────────────────────── */
+/* ─── App Shell Layout ──────────────────────────────────────────────────────── */
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
   background: var(--bg-base);
-  min-width: 900px;
+  overflow: hidden;
 }
 
 /* ─── Top Bar ────────────────────────────────────────────────────────────────── */
@@ -113,43 +114,52 @@ body {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border-base);
-  background: var(--bg-surface);
+  background: var(--bg-panel);
   flex-shrink: 0;
   z-index: 50;
   padding: 0 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 
-/* ─── Main area ──────────────────────────────────────────────────────────────── */
+.topbar-div {
+  width: 1px;
+  height: 16px;
+  background: var(--border-dim);
+  margin: 0 10px;
+}
+
+/* ─── Main Area & Workstation Layout ────────────────────────────────────────── */
 .main-area {
   display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .panel-left {
   width: var(--left-w);
-  min-width: 220px;
+  min-width: 260px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
   border-right: 1px solid var(--border-base);
   overflow: hidden;
-  box-shadow: 1px 0 3px rgba(0,0,0,0.02);
+  transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 20;
 }
 
 .panel-right {
   width: var(--right-w);
-  min-width: 200px;
+  min-width: 260px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
   border-left: 1px solid var(--border-base);
   overflow: hidden;
-  box-shadow: -1px 0 3px rgba(0,0,0,0.02);
+  transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 20;
 }
 
 .panel-center {
@@ -157,7 +167,7 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #e6ebf1;
+  background: var(--bg-base);
   overflow: hidden;
   position: relative;
 }
@@ -166,7 +176,7 @@ body {
 .panel-center:-webkit-full-screen {
   width: 100vw !important;
   height: 100vh !important;
-  background: var(--bg-surface);
+  background: var(--bg-base);
   display: flex;
   flex-direction: column;
 }
@@ -176,10 +186,9 @@ body {
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--border-base);
-  background: var(--bg-surface);
+  background: var(--bg-panel);
   flex-shrink: 0;
   z-index: 50;
-  box-shadow: 0 -1px 4px rgba(0,0,0,0.03);
 }
 
 /* ─── Panel header strip ─────────────────────────────────────────────────────── */
@@ -585,4 +594,43 @@ body {
 .cold-zone-tooltip::before {
   display: none !important;
 }
+
+/* ─── Responsive Breakpoint Strategy ────────────────────────────────────────── */
+@media (max-width: 1439px) {
+  :root {
+    --left-w: 260px;
+    --right-w: 260px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .main-area {
+    position: relative;
+  }
+  .panel-left, .panel-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    max-width: 320px;
+    width: 85%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+  .panel-left { left: 0; }
+  .panel-right { right: 0; }
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .topbar-div {
+    display: none;
+  }
+  .panel-left, .panel-right {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 

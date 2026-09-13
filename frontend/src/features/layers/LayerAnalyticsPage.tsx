@@ -3,7 +3,7 @@
  *
  * Dedicated Full-Page Layer-by-Layer EnergyPlus & Physics Workstation.
  *
- * Provides deep architectural and transient thermal analytics for all 7 physical envelope layers:
+ * Provides deep architectural and transient thermal analytics for physical envelope layers and environmental visualization layers:
  * 1. Volumetric Thermal Insulation Core
  * 2. PCM (Phase Change Material) Latent Heat Buffer
  * 3. Interior Structural Thermal Mass Shell
@@ -39,6 +39,7 @@ import { useClimateStore } from '@/store/climateStore'
 import { useResultsStore } from '@/store/resultsStore'
 import { useNavigationStore } from '@/store/navigationStore'
 import type { LayerId } from '@/store/layerInspectorStore'
+import { formatSigned } from '@/lib/formatters'
 
 // ─── 7 Physical Layers Metadata ───────────────────────────────────────────────
 export interface LayerMetadata {
@@ -61,7 +62,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Volumetric Thermal Insulation Core',
     shortTitle: 'Insulation Core',
     subtitle: 'Continuous high-R envelope thermal barrier resisting sub-zero conductive losses',
-    category: 'Thermal Resistance (R-Value)',
+    category: 'Envelope Insulation Core',
     color: '#d97706',
     bgGlow: 'rgba(217, 119, 6, 0.15)',
     accentBorder: '#f59e0b',
@@ -85,7 +86,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Interior Structural Thermal Mass Shell',
     shortTitle: 'Thermal Mass',
     subtitle: 'High-density wall & floor matrix delivering diurnal thermal lag and stability',
-    category: 'Sensible Heat Capacity (C_v)',
+    category: 'Sensible Heat Battery',
     color: '#8b5cf6',
     bgGlow: 'rgba(139, 92, 246, 0.15)',
     accentBorder: '#a78bfa',
@@ -97,7 +98,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Solar Glazing Aperture & Optical Envelope',
     shortTitle: 'Solar Glazing',
     subtitle: 'High-transmittance south-facing glazing engineered for greenhouse IR trapping',
-    category: 'Solar Optics (SHGC / WWR)',
+    category: 'Solar Glazing Aperture',
     color: '#38bdf8',
     bgGlow: 'rgba(56, 189, 248, 0.15)',
     accentBorder: '#38bdf8',
@@ -109,7 +110,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Volumetric Sunbeam Shaft & Solar Ingress',
     shortTitle: 'Sunbeam Shaft',
     subtitle: '3D direct solar penetration geometry casting radiant energy onto the floor slab',
-    category: 'Direct Radiant Ingress (W/m²)',
+    category: 'Environmental Visualization',
     color: '#fbbf24',
     bgGlow: 'rgba(251, 191, 36, 0.18)',
     accentBorder: '#fbbf24',
@@ -121,7 +122,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Multi-Layer Insulated Foundation Slab',
     shortTitle: 'Insulated Floor',
     subtitle: 'Thermally decoupled ground coupling floor with continuous sub-slab XPS',
-    category: 'Ground Coupling (F_g)',
+    category: 'Ground Coupling Slab',
     color: '#10b981',
     bgGlow: 'rgba(16, 185, 129, 0.15)',
     accentBorder: '#34d399',
@@ -133,7 +134,7 @@ export const LAYERS_CONFIG: Record<LayerId, LayerMetadata> = {
     name: 'Exterior Weather Cladding & Aerodynamic Shell',
     shortTitle: 'Outer Cladding',
     subtitle: 'Weather-tight alpine rainscreen reducing convective wind-chill and radiative loss',
-    category: 'Surface Convection & Sol-Air',
+    category: 'Exterior Weather Barrier',
     color: '#64748b',
     bgGlow: 'rgba(100, 116, 139, 0.15)',
     accentBorder: '#94a3b8',
@@ -191,9 +192,6 @@ function generateLayer24hCurves(
     // Foundation ground heat flux
     const groundHeatFlux = -4.5 + Math.sin(((h - 14) * Math.PI) / 12) * 2.1
 
-    // Cladding Sol-Air Temperature
-    const solAirTemp = tOut + (solarW * 0.04) / 17
-
     return {
       hour: timeLabel,
       tOut: Number(tOut.toFixed(1)),
@@ -208,7 +206,6 @@ function generateLayer24hCurves(
       transmittedSolar: Number(transmittedSolar.toFixed(1)),
       sunbeamPower: Number(Math.max(0, sunbeamPower).toFixed(0)),
       groundHeatFlux: Number(groundHeatFlux.toFixed(1)),
-      solAirTemp: Number(solAirTemp.toFixed(1)),
     }
   })
 }
@@ -460,7 +457,7 @@ export const LayerAnalyticsPage: React.FC = () => {
   const setSelectedLayer = useNavigationStore((s) => s.setSelectedLayer)
   const openWorkbench = useNavigationStore((s) => s.openWorkbench)
 
-  const { insulation, wallMaterial, thermalMass, openingRatio, width, height } = useDesignStore()
+  const { insulation, wallMaterial, thermalMass, openingRatio } = useDesignStore()
   const activeProfile = useClimateStore((s) => s.activeProfile)
   const indoorTemp = useResultsStore((s) => s.indoorTemp)
 
@@ -480,10 +477,6 @@ export const LayerAnalyticsPage: React.FC = () => {
   const massPct = ((massMm / totalWallMm) * 100).toFixed(1)
   const pcmPct = hasPCM ? ((pcmMm / totalWallMm) * 100).toFixed(1) : '0.0'
   const cladPct = ((claddingMm / totalWallMm) * 100).toFixed(1)
-
-  const rValue = (insulation / 32).toFixed(2)
-  const uValue = (1 / (0.13 + (insulation / 32 / 1000) * 1000 + 0.04)).toFixed(2)
-  const glazingArea = (width * height * (openingRatio / 100) * 0.95).toFixed(2)
 
   // Generate 24h curves for graph visualizer
   const chartData = useMemo(() => {
@@ -528,6 +521,7 @@ export const LayerAnalyticsPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={openWorkbench}
+            aria-label="Return to 3D Digital Twin Workstation"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -536,6 +530,7 @@ export const LayerAnalyticsPage: React.FC = () => {
               border: '1px solid #475569',
               color: '#e2e8f0',
               padding: '6px 12px',
+              minHeight: 36,
               borderRadius: 6,
               fontSize: 11,
               fontFamily: 'var(--font-mono)',
@@ -585,12 +580,12 @@ export const LayerAnalyticsPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontFamily: 'var(--font-mono)' }}>
             <span style={{ color: '#94a3b8' }}>INDOOR PREDICTED:</span>
             <strong style={{ color: '#38bdf8' }}>
-              {indoorTemp != null && indoorTemp !== 0 ? `+${indoorTemp.toFixed(1)}°C` : '+12.4°C'}
+              {indoorTemp != null && indoorTemp !== 0 ? formatSigned(indoorTemp, 1) + '°C' : 'AWAITING SIMULATION'}
             </strong>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-            <span style={{ color: '#94a3b8' }}>DIHAR ACCURACY:</span>
-            <strong style={{ color: '#34d399' }}>R² 0.9986 (VERIFIED)</strong>
+            <span style={{ color: '#94a3b8' }}>DIHAR BENCHMARK:</span>
+            <strong style={{ color: '#34d399' }}>R² 0.9986 (OFFLINE VALIDATED)</strong>
           </div>
         </div>
       </div>
@@ -599,51 +594,89 @@ export const LayerAnalyticsPage: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          gap: 6,
-          padding: '8px 16px',
+          alignItems: 'center',
+          gap: 12,
+          padding: '6px 16px',
           background: '#0f172a',
           borderBottom: '1px solid #1e293b',
           overflowX: 'auto',
         }}
       >
-        {(Object.keys(LAYERS_CONFIG) as LayerId[]).map((layerKey) => {
-          const cfg = LAYERS_CONFIG[layerKey]
-          const isSelected = selectedLayer === layerKey
-          return (
-            <button
-              key={layerKey}
-              onClick={() => setSelectedLayer(layerKey)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 11,
-                fontFamily: 'var(--font-mono)',
-                fontWeight: isSelected ? 700 : 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                border: isSelected ? `1px solid ${cfg.accentBorder}` : '1px solid #334155',
-                background: isSelected ? cfg.bgGlow : 'rgba(30, 41, 59, 0.4)',
-                color: isSelected ? cfg.color : '#94a3b8',
-                boxShadow: isSelected ? `0 2px 8px ${cfg.bgGlow}` : 'none',
-                transition: 'all 0.15s',
-              }}
-            >
-              <span>#{cfg.num}</span>
-              <span>{cfg.shortTitle}</span>
-              {layerKey === 'insulation' && (
-                <span style={{ fontSize: 9, opacity: 0.8 }}>({insulation}mm)</span>
-              )}
-              {layerKey === 'pcm' && (
-                <span style={{ fontSize: 8.5, color: hasPCM ? '#22d3ee' : '#64748b' }}>
-                  {hasPCM ? 'ACTIVE' : 'OFF'}
-                </span>
-              )}
-            </button>
-          )
-        })}
+        {/* PHYSICAL ENVELOPE LAYERS */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginRight: 4 }}>
+            PHYSICAL ENVELOPE:
+          </span>
+          {(['insulation', 'pcm', 'thermal_mass', 'glazing', 'ground_slab', 'cladding'] as LayerId[]).map((layerKey) => {
+            const cfg = LAYERS_CONFIG[layerKey]
+            const isSelected = selectedLayer === layerKey
+            return (
+              <button
+                key={layerKey}
+                onClick={() => setSelectedLayer(layerKey)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 9px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  border: isSelected ? `1px solid ${cfg.accentBorder}` : '1px solid #334155',
+                  background: isSelected ? cfg.bgGlow : 'rgba(30, 41, 59, 0.4)',
+                  color: isSelected ? cfg.color : '#94a3b8',
+                  boxShadow: isSelected ? `0 2px 8px ${cfg.bgGlow}` : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>#{cfg.num}</span>
+                <span>{cfg.shortTitle}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{ width: 1, height: 16, background: '#334155', margin: '0 2px' }} />
+
+        {/* ENVIRONMENTAL VISUALIZATION */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, fontWeight: 700, color: 'var(--solar)', letterSpacing: '0.08em', textTransform: 'uppercase', marginRight: 4 }}>
+            ENVIRONMENTAL VIZ:
+          </span>
+          {(['solar_beam'] as LayerId[]).map((layerKey) => {
+            const cfg = LAYERS_CONFIG[layerKey]
+            const isSelected = selectedLayer === layerKey
+            return (
+              <button
+                key={layerKey}
+                onClick={() => setSelectedLayer(layerKey)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 9px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  border: isSelected ? `1px solid ${cfg.accentBorder}` : '1px solid #334155',
+                  background: isSelected ? cfg.bgGlow : 'rgba(30, 41, 59, 0.4)',
+                  color: isSelected ? cfg.color : '#94a3b8',
+                  boxShadow: isSelected ? `0 2px 8px ${cfg.bgGlow}` : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>#{cfg.num}</span>
+                <span>{cfg.shortTitle}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── Main Layer Dashboard Grid ── */}
@@ -771,35 +804,35 @@ export const LayerAnalyticsPage: React.FC = () => {
             }}
           >
             <div style={{ background: '#0f172a', padding: 8, borderRadius: 6, border: '1px solid #1e293b' }}>
-              <span style={{ fontSize: 8.5, color: '#64748b' }}>THERMAL RESISTANCE (R)</span>
+              <span style={{ fontSize: 8.5, color: '#64748b' }}>INSULATION CORE THICKNESS</span>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24', marginTop: 2 }}>
-                R-{rValue} m²·K/W
+                {insulation} mm
               </div>
-              <span style={{ fontSize: 8, color: '#94a3b8' }}>Target: R-3.50 (Cold Zone)</span>
+              <span style={{ fontSize: 8, color: '#94a3b8' }}>Design input state</span>
             </div>
 
             <div style={{ background: '#0f172a', padding: 8, borderRadius: 6, border: '1px solid #1e293b' }}>
-              <span style={{ fontSize: 8.5, color: '#64748b' }}>TRANSMITTANCE (U-VALUE)</span>
+              <span style={{ fontSize: 8.5, color: '#64748b' }}>THERMAL RESISTANCE</span>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#38bdf8', marginTop: 2 }}>
-                U-{uValue} W/m²·K
+                Simulation Input
               </div>
-              <span style={{ fontSize: 8, color: '#94a3b8' }}>Fabric heat loss rate</span>
+              <span style={{ fontSize: 8, color: '#94a3b8' }}>Evaluated in backend engine</span>
             </div>
 
             <div style={{ background: '#0f172a', padding: 8, borderRadius: 6, border: '1px solid #1e293b' }}>
-              <span style={{ fontSize: 8.5, color: '#64748b' }}>SOLAR GLAZING AREA</span>
+              <span style={{ fontSize: 8.5, color: '#64748b' }}>SOUTH GLAZING APERTURE</span>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', marginTop: 2 }}>
-                {glazingArea} m² ({openingRatio}%)
+                {openingRatio}% WWR
               </div>
-              <span style={{ fontSize: 8, color: '#94a3b8' }}>South window-to-wall</span>
+              <span style={{ fontSize: 8, color: '#94a3b8' }}>South window ratio input</span>
             </div>
 
             <div style={{ background: '#0f172a', padding: 8, borderRadius: 6, border: '1px solid #1e293b' }}>
-              <span style={{ fontSize: 8.5, color: '#64748b' }}>THERMAL ADMITTANCE</span>
+              <span style={{ fontSize: 8.5, color: '#64748b' }}>THERMAL MASS SELECTION</span>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa', marginTop: 2 }}>
-                {thermalMass === 'high' ? '4.8 kJ/m²K' : thermalMass === 'low' ? '1.9 kJ/m²K' : '3.2 kJ/m²K'}
+                {thermalMass.toUpperCase()} MASS
               </div>
-              <span style={{ fontSize: 8, color: '#94a3b8' }}>{thermalMass.toUpperCase()} Mass lag</span>
+              <span style={{ fontSize: 8, color: '#94a3b8' }}>Design input ({massMm} mm)</span>
             </div>
           </div>
         </div>
@@ -827,14 +860,14 @@ export const LayerAnalyticsPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
                 <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#f8fafc' }}>
-                  24-HOUR ENERGYPLUS & TRANSIENT FLUX DIAGNOSTICS: {activeLayer.name.toUpperCase()}
+                  24-HOUR TRANSIENT DYNAMICS VISUALIZER: {activeLayer.name.toUpperCase()}
                 </span>
                 <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
                   Hourly thermodynamic flux and diurnal response simulated across the 24-hour design cycle.
                 </div>
               </div>
-              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: '#34d399', background: 'rgba(52, 211, 153, 0.15)', padding: '2px 6px', borderRadius: 4 }}>
-                ENERGYPLUS VERIFIED
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '2px 6px', borderRadius: 4 }}>
+                TRANSIENT DYNAMICS VISUALIZER
               </span>
             </div>
 
@@ -912,7 +945,7 @@ export const LayerAnalyticsPage: React.FC = () => {
 
                   {selectedLayer === 'cladding' && (
                     <>
-                      <Area type="monotone" dataKey="solAirTemp" name="Sol-Air Exterior Temp (°C)" stroke="#94a3b8" fill="url(#colorPrimary)" />
+                      <Area type="monotone" dataKey="solarW" name="Incident Solar Radiation (W/m²)" stroke="#fbbf24" fill="url(#colorPrimary)" />
                       <Line type="monotone" dataKey="tOut" name="Outdoor Temp (°C)" stroke="#38bdf8" strokeWidth={1.5} dot={false} />
                     </>
                   )}
@@ -931,7 +964,7 @@ export const LayerAnalyticsPage: React.FC = () => {
             }}
           >
             <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-              MATERIALS BENCHMARK & COLD-ZONE NBC 2016 COMPLIANCE
+              MATERIAL SPECIFICATIONS & FIELD REFERENCE
             </span>
 
             <table style={{ width: '100%', fontSize: 9.5, fontFamily: 'var(--font-mono)', marginTop: 8, borderCollapse: 'collapse' }}>
