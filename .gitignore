@@ -8,3 +8,15 @@ dist-ssr
 .idea
 .vscode/*
 !.vscode/extensions.json
+__pycache__/
+*.pyc
+*.trn
+*.msh
+*.db
+*.bdf
+*.cdb
+*.cgns
+*.inp
+ansys_fluent_scratch/
+.pytest_cache/
+

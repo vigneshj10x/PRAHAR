@@ -1,13 +1,17 @@
 import { Suspense, useState, useEffect, useRef } from 'react'
 import type { FC } from 'react'
-import { RotateCcw, Maximize2, Minimize2, Sun } from 'lucide-react'
+import { RotateCcw, Maximize2, Minimize2, Sun, Mountain } from 'lucide-react'
 import { useDesignStore } from '@/store/designStore'
 import { useVisualizationStore } from '@/store/visualizationStore'
+import { useClimateStore } from '@/store/climateStore'
 import type { CameraViewMode } from '@/domain'
 import { getLocationProfile } from '@/data/locations'
 import ShelterScene from './ShelterScene'
 import VisualizationModeToggle from './VisualizationModeToggle'
 import ClimateProfileCard from '@/features/location/ClimateProfileCard'
+import { RiskAssessmentCard } from '@/features/risk-assessment/RiskAssessmentCard'
+import { SectionLegend } from './SectionLegend'
+import { LayerInspectorModal } from './LayerInspectorModal'
 import { degreesToCompass } from '@/lib/formatters'
 
 const VIEW_MODES: Array<{ id: CameraViewMode; label: string }> = [
@@ -19,14 +23,17 @@ const VIEW_MODES: Array<{ id: CameraViewMode; label: string }> = [
 
 export const CenterPanel: FC = () => {
   const { shape, orientation, length, width, height, location } = useDesignStore()
-  const viewMode    = useVisualizationStore((s) => s.viewMode)
-  const setViewMode = useVisualizationStore((s) => s.setViewMode)
-  const resetCamera = useVisualizationStore((s) => s.resetCamera)
+  const activeProfile = useClimateStore((s) => s.activeProfile)
+  const viewMode          = useVisualizationStore((s) => s.viewMode)
+  const setViewMode       = useVisualizationStore((s) => s.setViewMode)
+  const resetCamera       = useVisualizationStore((s) => s.resetCamera)
+  const showEnvironment   = useVisualizationStore((s) => s.showEnvironment)
+  const toggleEnvironment = useVisualizationStore((s) => s.toggleEnvironment)
 
   const panelRef = useRef<HTMLElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
-  const loc = getLocationProfile(location)
+  const loc = activeProfile || getLocationProfile(location)
 
   // Track browser fullscreen state changes
   useEffect(() => {
@@ -123,6 +130,27 @@ export const CenterPanel: FC = () => {
         {/* Visualization mode toggle */}
         <VisualizationModeToggle />
 
+        {/* Environment toggle button */}
+        <button
+          id="vp-env-toggle"
+          className={`viewport-btn ${showEnvironment ? 'active' : ''}`}
+          title={showEnvironment ? 'Hide Background Environment (Mountains, Trees, Weather)' : 'Show Background Environment'}
+          style={{
+            padding: '3px 7px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            color: showEnvironment ? 'var(--solar)' : 'var(--text-muted)',
+            borderColor: showEnvironment ? 'var(--solar)' : 'transparent',
+            background: showEnvironment ? 'rgba(217, 119, 6, 0.08)' : 'transparent',
+            fontWeight: showEnvironment ? 700 : 500,
+          }}
+          onClick={toggleEnvironment}
+        >
+          <Mountain size={11} />
+          <span>Env</span>
+        </button>
+
         <div style={{ width: 1, height: 14, background: 'var(--border-dim)', margin: '0 4px' }} />
 
         <button
@@ -170,6 +198,10 @@ export const CenterPanel: FC = () => {
           <ShelterScene />
         </Suspense>
 
+        {/* ── Section (Cutaway) View Legend & Deep Layer Inspector ── */}
+        <SectionLegend />
+        <LayerInspectorModal />
+
         {/* ── Shape / orientation info badge ── */}
         <div id="viewport-info" style={{
           position: 'absolute', top: 8, left: 8,
@@ -192,8 +224,23 @@ export const CenterPanel: FC = () => {
           ))}
         </div>
 
-        {/* ── Climate Profile Card (Collapsible) ── */}
-        <ClimateProfileCard />
+        {/* ── Top-Right Overlay Cards (Microclimate & Disaster Risk Assessment) ── */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 6,
+            zIndex: 20,
+            pointerEvents: 'none',
+          }}
+        >
+          <ClimateProfileCard />
+          <RiskAssessmentCard />
+        </div>
 
         {/* ── XYZ coordinate HUD ── */}
         <div id="viewport-hud" style={{

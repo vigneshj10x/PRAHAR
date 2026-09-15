@@ -9,25 +9,32 @@ import type { VisualizationMode, CameraViewMode } from '@/domain'
 export type { VisualizationMode, CameraViewMode }
 
 interface VisualizationState {
-  mode:           VisualizationMode
-  viewMode:       CameraViewMode
-  cameraResetKey: number
+  mode:            VisualizationMode
+  viewMode:        CameraViewMode
+  cameraResetKey:  number
+  showEnvironment: boolean
 }
 
 interface VisualizationActions {
-  setMode:     (mode: VisualizationMode) => void
-  setViewMode: (viewMode: CameraViewMode) => void
-  resetCamera: () => void
+  setMode:           (mode: VisualizationMode) => void
+  setViewMode:       (viewMode: CameraViewMode) => void
+  resetCamera:       () => void
+  setShowEnvironment:(show: boolean) => void
+  toggleEnvironment: () => void
 }
 
 export type VisualizationStore = VisualizationState & VisualizationActions
 
 export const useVisualizationStore = create<VisualizationStore>((set) => ({
-  mode:           'normal',
-  viewMode:       'perspective',
-  cameraResetKey: 0,
+  mode:            'normal',
+  viewMode:        'perspective',
+  cameraResetKey:  0,
+  showEnvironment: true,
 
-  setMode:        (mode) => set({ mode }),
-  setViewMode:    (viewMode) => set({ viewMode }),
-  resetCamera:    () => set((s) => ({ cameraResetKey: s.cameraResetKey + 1 })),
+  setMode:           (mode) => set({ mode }),
+  setViewMode:       (viewMode) => set({ viewMode }),
+  resetCamera:       () => set((s) => ({ cameraResetKey: s.cameraResetKey + 1 })),
+  setShowEnvironment:(showEnvironment) => set({ showEnvironment }),
+  toggleEnvironment: () => set((s) => ({ showEnvironment: !s.showEnvironment })),
 }))
+

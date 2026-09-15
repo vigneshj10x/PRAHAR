@@ -1,0 +1,67 @@
+{
+  "trained_at": "2026-09-08T04:46:01Z",
+  "n_train_samples": 4003,
+  "n_test_samples": 1001,
+  "metrics": {
+    "u_value": {
+      "mae": 0.0249,
+      "rmse": 0.0883,
+      "r2": 0.8207
+    },
+    "mean_indoor_temp": {
+      "mae": 0.3716,
+      "rmse": 0.6226,
+      "r2": 0.9984
+    },
+    "min_indoor_temp": {
+      "mae": 0.3943,
+      "rmse": 0.6493,
+      "r2": 0.9983
+    },
+    "max_indoor_temp": {
+      "mae": 0.9827,
+      "rmse": 1.6501,
+      "r2": 0.9899
+    },
+    "solar_gain_wm2": {
+      "mae": 0.4322,
+      "rmse": 2.687,
+      "r2": 0.4954
+    },
+    "heat_loss_wm2": {
+      "mae": 0.5568,
+      "rmse": 2.073,
+      "r2": 0.741
+    },
+    "heating_demand_kwh_day": {
+      "mae": 1.9003,
+      "rmse": 5.183,
+      "r2": 0.9791
+    },
+    "comfort_percent": {
+      "mae": 3.4153,
+      "rmse": 8.059,
+      "r2": 0.7888
+    },
+    "comfort_hours_5c": {
+      "mae": 0.5832,
+      "rmse": 1.3952,
+      "r2": 0.9837
+    },
+    "total_weight_kg": {
+      "mae": 193.643,
+      "rmse": 373.913,
+      "r2": 0.9994
+    },
+    "total_cost_inr": {
+      "mae": 1973.8414,
+      "rmse": 3168.3576,
+      "r2": 0.9986
+    },
+    "carbon_footprint_kgco2": {
+      "mae": 17.8714,
+      "rmse": 38.6903,
+      "r2": 0.9991
+    }
+  }
+}

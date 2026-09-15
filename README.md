@@ -1,32 +1,64 @@
-# React + TypeScript + Vite
+# THERMO-SHIELD — Climate-Aware Shelter Thermal Design & Optimization Engine
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Smart India Hackathon Prototype (PS 26051, DRDO / iDEX).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Repository Structure
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+thermo-shield/
+├── frontend/             # React + TypeScript + Vite, React Three Fiber, Recharts, Zustand
+├── backend/              # FastAPI Python backend (HTTP REST API)
+├── simulation-engine/    # Reduced-order RC thermal physics model & material database
+├── docs/                 # API contract, physics methodology & material sources
+└── README.md
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## How to Run Locally
+
+### Option 1: Run Frontend + Backend (Two Terminals)
+
+#### Terminal 1 — Backend (FastAPI on port 8000)
+```bash
+cd backend
+pip install -r requirements.txt
+python main.py
+```
+*Backend runs at `http://localhost:8000` (Swagger docs at `http://localhost:8000/docs`).*
+
+#### Terminal 2 — Frontend (Vite on port 5173)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*Frontend runs at `http://localhost:5173`.*
+
+---
+
+### Option 2: Frontend-Only Mode (In-Memory Mock Fallback)
+To run the frontend in standalone mode without starting the Python backend, set in `frontend/.env`:
+```env
+VITE_USE_MOCK_ENGINE=true
+```
+Then run:
+```bash
+cd frontend
+npm run dev
+```
+
+To enable live backend API transport over HTTP:
+```env
+VITE_USE_MOCK_ENGINE=false
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+---
+
+## Documentation & Methodology
+- [API Contract Specification](docs/api-contract.md)
+- [Thermal Simulation Methodology](docs/methodology.md)
+- [Material Database Sources & Standards](docs/material-sources.md)

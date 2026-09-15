@@ -3,6 +3,7 @@ import { Settings2 } from 'lucide-react'
 import { useDesignStore } from '@/store/designStore'
 import type { ShapeType, ThermalMassType } from '@/domain'
 import { degreesToCompass } from '@/lib/formatters'
+import LocationSearchBox from '@/features/location/LocationSearchBox'
 
 /* ── Tiny reusable form primitives ───────────────────────────────── */
 
@@ -96,9 +97,6 @@ const FRange: FC<RangeProps> = ({ id, value, onChange, min, max, step = 1, forma
 /* ── Main panel ───────────────────────────────────────────────────── */
 export const LeftPanel: FC = () => {
   // ── Read & write from shared Zustand store ──────────────────────
-  const location     = useDesignStore(s => s.location)
-  const setLocation  = useDesignStore(s => s.setLocation)
-
   const shape        = useDesignStore(s => s.shape)
   const setShape     = useDesignStore(s => s.setShape)
 
@@ -117,6 +115,9 @@ export const LeftPanel: FC = () => {
   const wallMaterial  = useDesignStore(s => s.wallMaterial)
   const setWallMaterial = useDesignStore(s => s.setWallMaterial)
 
+  const roofMaterial  = useDesignStore(s => s.roofMaterial)
+  const setRoofMaterial = useDesignStore(s => s.setRoofMaterial)
+
   const insulation    = useDesignStore(s => s.insulation)
   const setInsulation = useDesignStore(s => s.setInsulation)
 
@@ -126,11 +127,90 @@ export const LeftPanel: FC = () => {
   const thermalMass    = useDesignStore(s => s.thermalMass)
   const setThermalMass = useDesignStore(s => s.setThermalMass)
 
-  // Derived summary stats
+  const occupants         = useDesignStore(s => s.occupants)
+  const setOccupants      = useDesignStore(s => s.setOccupants)
+  const budget            = useDesignStore(s => s.budget)
+  const setBudget         = useDesignStore(s => s.setBudget)
+  const weightLimit       = useDesignStore(s => s.weightLimit)
+  const setWeightLimit    = useDesignStore(s => s.setWeightLimit)
+  const minComfortPercent = useDesignStore(s => s.minComfortPercent)
+  const setMinComfortPercent = useDesignStore(s => s.setMinComfortPercent)
+
+  // Derived summary stats for all 25 shapes
+  const getShapeFactors = (s: ShapeType) => {
+    switch (s) {
+      case 'semidome': case 'barrel_vault': return { v: 0.65, a: 0.82 }
+      case 'aframe': case 'conical_teepee': case 'pyramidal': return { v: 0.50, a: 0.75 }
+      case 'geodesic_dome': case 'igloo_catenary': return { v: 0.58, a: 0.68 }
+      case 'hexagonal_yurt': case 'octagonal_pod': return { v: 0.72, a: 0.85 }
+      case 'monopitch': case 'gable': case 'hip_roof': return { v: 0.75, a: 0.95 }
+      case 'mansard': case 'gambrel': return { v: 0.85, a: 1.05 }
+      case 'bunker_bermed': return { v: 0.70, a: 0.55 }
+      case 'stilt_elevated': return { v: 0.65, a: 1.15 }
+      default: return { v: 0.75, a: 1.0 }
+    }
+  }
+
+  const sFact = getShapeFactors(shape)
   const floorArea = (length * width).toFixed(1)
-  const volume    = (length * width * height * 0.75).toFixed(1)
-  const avRatio   = ((2 * (length * height + width * height) + length * width) / (length * width * height * 0.75)).toFixed(2)
-  const rVal      = (insulation / 1000 / 0.032).toFixed(2)
+  const calcVol = Math.max(1, length * width * height * sFact.v)
+  const calcEnv = Math.max(1, (2 * (length * height + width * height) + length * width) * sFact.a)
+  const volume = calcVol.toFixed(1)
+  const avRatio = (calcEnv / calcVol).toFixed(2)
+  const rVal = (insulation / 1000 / 0.032).toFixed(2)
+
+  const SHAPE_CATEGORIES = [
+    {
+      name: '1. Standard & Prismatic',
+      shapes: [
+        { value: 'rectangular', label: 'Rectangular Box (Flat/Low Slope)', badge: 'Balanced' },
+        { value: 'monopitch', label: 'Single-Slope Solar Shed', badge: 'Solar Max' },
+        { value: 'gable', label: 'Pitched Gable Roof', badge: 'Rain & Snow' },
+        { value: 'hip_roof', label: '4-Slope Pyramidal Hip', badge: '4-Way Wind' },
+        { value: 'mansard', label: 'Mansard Curb Roof', badge: 'Max Clearance' },
+        { value: 'gambrel', label: 'Gambrel Arch Barn', badge: 'Loft Volume' },
+      ],
+    },
+    {
+      name: '2. Curved & Vaulted',
+      shapes: [
+        { value: 'semidome', label: 'Semi-Cylinder Quonset Vault', badge: 'Low S/V' },
+        { value: 'quonset_extended', label: 'Extended Quonset Vault', badge: 'High Arch' },
+        { value: 'barrel_vault', label: 'Gothic Barrel Vault', badge: 'Structural Arch' },
+        { value: 'hyperbolic_paraboloid', label: 'Saddle Hypar Paraboloid', badge: 'Tensile Flow' },
+        { value: 'torus_inflatable', label: 'Pressurized Toroidal Pod', badge: 'Extreme Altitude' },
+      ],
+    },
+    {
+      name: '3. Domes & Geodesics',
+      shapes: [
+        { value: 'geodesic_dome', label: '3V Geodesic Dome', badge: 'Min Thermal Loss' },
+        { value: 'igloo_catenary', label: 'Catenary Igloo Dome', badge: 'Hyper-Insulated' },
+        { value: 'pyramidal', label: '4-Sided High-Snow Pyramid', badge: 'Snow Shedding' },
+        { value: 'conical_teepee', label: 'Conical Alpine Bivouac', badge: 'Steep Pitch' },
+      ],
+    },
+    {
+      name: '4. Polygonal & High-Wind',
+      shapes: [
+        { value: 'aframe', label: 'Steep A-Frame Prism', badge: 'Avalanche Shed' },
+        { value: 'hexagonal_yurt', label: 'Hexagonal Nomadic Yurt', badge: 'Radial Wind' },
+        { value: 'octagonal_pod', label: 'Octagonal Defense Bunker', badge: 'Wind Buffer' },
+        { value: 'diamond_faceted', label: 'Faceted Diamond Stealth Pod', badge: 'Deflection' },
+        { value: 'wedge_supersonic', label: 'Supersonic Windward Wedge', badge: 'Wind Scoured' },
+      ],
+    },
+    {
+      name: '5. Specialized & Adaptive',
+      shapes: [
+        { value: 'bifacial_shed', label: 'Bifacial Dual-Slope Collector', badge: 'Solar Thermal+' },
+        { value: 'stilt_elevated', label: 'Elevated Stilt Tropical Pod', badge: 'Flood Defense' },
+        { value: 'bunker_bermed', label: 'Earth-Bermed Thermal Bunker', badge: 'Earth Coupling' },
+        { value: 'modular_hex_cluster', label: 'Modular Hexagonal Cluster', badge: 'Scalable' },
+        { value: 'origami_accordion', label: 'Pleated Origami Deployable', badge: 'Rapid Deploy' },
+      ],
+    },
+  ]
 
   return (
     <aside className="panel-left" id="panel-left" aria-label="Design Parameters">
@@ -147,38 +227,10 @@ export const LeftPanel: FC = () => {
       {/* Scrollable form body */}
       <div className="panel-body">
 
-        {/* ── LOCATION ───────────────────────────────────────────── */}
+        {/* ── LOCATION & CLIMATE ZONE (REAL METEOROLOGICAL INTEGRATION) ── */}
         <div className="form-section">
-          <div className="form-section-title">Location & Climate Zone</div>
-
-          <div className="form-group">
-            <FLabel>Site / Climate</FLabel>
-            <FSelect
-              id="param-location"
-              value={location}
-              onChange={setLocation}
-              options={[
-                { value: 'leh',       label: 'Leh, Ladakh (Cold & Arid, 3524m)' },
-                { value: 'jaisalmer', label: 'Jaisalmer, RJ (Hot & Dry, 225m)' },
-                { value: 'delhi',     label: 'New Delhi, NCR (Composite, 216m)' },
-                { value: 'kochi',     label: 'Kochi, Kerala (Warm & Humid, 4m)' },
-                { value: 'srinagar',  label: 'Srinagar, Kashmir (Cold & Cloudy, 1585m)' },
-              ]}
-            />
-            <div style={{
-              marginTop: 4,
-              fontSize: 7.5,
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--text-muted)',
-              lineHeight: 1.3,
-              background: 'var(--solar-glow)',
-              border: '1px solid var(--border-base)',
-              padding: '4px 6px',
-              borderRadius: 2,
-            }}>
-              <span style={{ color: 'var(--solar)', fontWeight: 700 }}>CLIMATE DRIVES DESIGN:</span> Active bioclimatic profile updates ambient conditions, solar potential & 3D daylight environment.
-            </div>
-          </div>
+          <div className="form-section-title">Location & Real Climate Flow</div>
+          <LocationSearchBox />
         </div>
 
         {/* ── GEOMETRY ───────────────────────────────────────────── */}
@@ -186,17 +238,41 @@ export const LeftPanel: FC = () => {
           <div className="form-section-title">Geometry</div>
 
           <div className="form-group">
-            <FLabel>Shape</FLabel>
-            <FSelect
-              id="param-shape"
-              value={shape}
-              onChange={v => setShape(v as ShapeType)}
-              options={[
-                { value: 'rectangular', label: 'Rectangular' },
-                { value: 'semidome',    label: 'Semi-dome' },
-                { value: 'aframe',      label: 'A-frame' },
-              ]}
-            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <FLabel>Shelter Geometry (25 Shapes)</FLabel>
+              <span
+                style={{
+                  fontSize: 7.5,
+                  fontFamily: 'var(--font-mono)',
+                  padding: '1px 5px',
+                  borderRadius: 2,
+                  background: 'rgba(217, 119, 6, 0.15)',
+                  color: 'var(--solar)',
+                  border: '1px solid rgba(217, 119, 6, 0.3)',
+                }}
+              >
+                S/V: {avRatio} m⁻¹
+              </span>
+            </div>
+            <div className="form-select-wrap">
+              <select
+                id="param-shape"
+                className="form-select"
+                value={shape}
+                onChange={e => setShape(e.target.value as ShapeType)}
+                style={{ fontSize: 10 }}
+              >
+                {SHAPE_CATEGORIES.map(cat => (
+                  <optgroup key={cat.name} label={cat.name} style={{ background: '#0f172a', color: '#fbbf24', fontWeight: 700 }}>
+                    {cat.shapes.map(s => (
+                      <option key={s.value} value={s.value} style={{ background: '#1e293b', color: '#f8fafc', fontWeight: 400 }}>
+                        {s.label} [{s.badge}]
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="form-row">
@@ -237,6 +313,37 @@ export const LeftPanel: FC = () => {
           </div>
         </div>
 
+        {/* ── OPTIMIZATION CRITERIA (PARETO REQUIREMENTS) ────────── */}
+        <div className="form-section">
+          <div className="form-section-title">Deployment Criteria</div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <FLabel>Occupants</FLabel>
+              <FNumber id="req-occupants" value={occupants} onChange={setOccupants}
+                min={1} max={50} step={1} unit="prs" />
+            </div>
+            <div className="form-group">
+              <FLabel>Min Comfort</FLabel>
+              <FNumber id="req-comfort" value={minComfortPercent} onChange={setMinComfortPercent}
+                min={0} max={100} step={5} unit="%" />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <FLabel>Budget Ceiling</FLabel>
+              <FNumber id="req-budget" value={budget} onChange={setBudget}
+                min={20000} max={1000000} step={5000} unit="₹" />
+            </div>
+            <div className="form-group">
+              <FLabel>Weight Limit</FLabel>
+              <FNumber id="req-weight" value={weightLimit} onChange={setWeightLimit}
+                min={500} max={30000} step={250} unit="kg" />
+            </div>
+          </div>
+        </div>
+
         {/* ── ENVELOPE ───────────────────────────────────────────── */}
         <div className="form-section">
           <div className="form-section-title">Envelope</div>
@@ -248,12 +355,27 @@ export const LeftPanel: FC = () => {
               value={wallMaterial}
               onChange={setWallMaterial}
               options={[
-                { value: 'adobe',    label: 'Adobe / Mud Brick' },
-                { value: 'stone',    label: 'Dry Stone Masonry' },
-                { value: 'rammed',   label: 'Rammed Earth' },
-                { value: 'concrete', label: 'Dense Concrete' },
-                { value: 'timber',   label: 'Timber Frame' },
-                { value: 'sip',      label: 'SIP Panel' },
+                { value: 'adobe',              label: 'Adobe / Mud Brick' },
+                { value: 'stone',              label: 'Dry Stone Masonry' },
+                { value: 'concrete',           label: 'Dense Concrete' },
+                { value: 'aac_block',          label: 'AAC Block' },
+                { value: 'composite',          label: 'Stabilized Bio-Composite' },
+                { value: 'insulated_panel',    label: 'PUF Insulated Panel' },
+                { value: 'pcm_enhanced_panel', label: 'PCM-Enhanced Wall Panel' },
+              ]}
+            />
+          </div>
+
+          <div className="form-group">
+            <FLabel>Roof Material</FLabel>
+            <FSelect
+              id="param-roofmat"
+              value={roofMaterial}
+              onChange={setRoofMaterial}
+              options={[
+                { value: 'timber_insulated_roof', label: 'Timber Insulated Roof' },
+                { value: 'insulated_panel',       label: 'PUF Sandwich Panel' },
+                { value: 'composite',             label: 'Stabilized Bio-Composite' },
               ]}
             />
           </div>

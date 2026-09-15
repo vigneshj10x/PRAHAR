@@ -165,7 +165,7 @@ export const CompareModal: FC = () => {
           borderBottom:        '1px solid var(--border-base)',
           marginBottom:        4,
         }}>
-          {['Metric', 'Existing', 'Optimized (C)', 'Δ'].map(col => (
+          {['Metric', 'Existing', afterResult.scenarioKey === 'C_optimized' ? 'Scenario C' : 'Recommendation', 'Δ'].map(col => (
             <div key={col} style={{
               fontFamily:    'var(--font-mono)',
               fontSize:      8,
@@ -193,7 +193,7 @@ export const CompareModal: FC = () => {
           </div>
           <div />
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-faint)', letterSpacing: '0.06em' }}>
-            Scenario C — Optimized
+            {afterResult.scenarioKey === 'C_optimized' ? 'Scenario C — Reference' : 'Verified Physics Result'}
           </div>
           <div />
         </div>

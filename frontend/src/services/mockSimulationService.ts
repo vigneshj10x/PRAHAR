@@ -224,13 +224,16 @@ export class MockSimulationService implements SimulationService {
   }
 
   async autoOptimize(params: DesignParams): Promise<OptimizeResult> {
+    const locStr = typeof params.location === 'string' ? params.location : 'leh'
+    const isCold = locStr === 'leh' || locStr.includes('srinagar')
     const optimizedParams: DesignParams = {
-      shape:        DATA.C_optimized.params.shape,
-      orientation:  DATA.C_optimized.params.orientation,
-      wallMaterial: DATA.C_optimized.params.wallMaterial,
-      insulation:   DATA.C_optimized.params.insulation,
-      openingRatio: DATA.C_optimized.params.openingRatio,
-      thermalMass:  DATA.C_optimized.params.thermalMass,
+      shape:        isCold ? 'igloo_catenary' : 'vaulted_barrel',
+      orientation:  isCold ? 180 : 160,
+      wallMaterial: isCold ? 'pcm_enhanced_panel' : 'aac_block',
+      roofMaterial: isCold ? 'insulated_panel' : 'timber_insulated_roof',
+      insulation:   isCold ? 150 : 75,
+      openingRatio: isCold ? 20 : 10,
+      thermalMass:  'high',
       location:     params.location ?? 'leh',
     }
     const results = computeScenarioResults(optimizedParams)
@@ -261,6 +264,100 @@ export class MockSimulationService implements SimulationService {
       params,
       results,
       hourly: scenario.hourly,
+    }
+  }
+
+  async recommend(req?: any): Promise<any[]> {
+    const lat = req?.location?.lat ?? 34.15
+    const isCold = lat > 30.0
+    return [
+      {
+        id: 'cand-pareto-01',
+        params: {
+          shape: isCold ? 'geodesic_dome' : 'vaulted_barrel',
+          orientation: 180,
+          wallMaterial: 'pcm_enhanced_panel',
+          roofMaterial: 'insulated_panel',
+          insulation: isCold ? 150 : 65,
+          opening: isCold ? 22 : 10,
+          thermalMass: 'high',
+        },
+        results: {
+          indoorTemp: isCold ? 19.8 : 24.2,
+          solarGain: 8.5,
+          heatLoss: -8.2,
+          comfortHours: 22.0,
+          heatingDemand: 1.2,
+          uValue: 0.19,
+          weight: 1250,
+          cost: 145000,
+          comfortPercent: 92,
+          estimated: true
+        },
+        tradeoffNotes: 'Thermal Protection Champion: High-efficiency PCM buffer + optimized envelope.',
+        paretoRank: 1,
+      },
+      {
+        id: 'cand-pareto-02',
+        params: {
+          shape: 'rectangular',
+          orientation: 180,
+          wallMaterial: 'adobe',
+          roofMaterial: 'timber_insulated_roof',
+          insulation: 50,
+          opening: 14,
+          thermalMass: 'medium',
+        },
+        results: {
+          indoorTemp: isCold ? 12.5 : 21.0,
+          solarGain: 6.2,
+          heatLoss: -14.5,
+          comfortHours: 14.0,
+          heatingDemand: 4.5,
+          uValue: 0.42,
+          weight: 4200,
+          cost: 85000,
+          comfortPercent: 65,
+          estimated: true
+        },
+        tradeoffNotes: 'Budget Champion: Vernacular mud brick + 50mm insulation.',
+        paretoRank: 1,
+      },
+      {
+        id: 'cand-pareto-03',
+        params: {
+          shape: 'igloo_catenary',
+          orientation: 180,
+          wallMaterial: 'aac_block',
+          roofMaterial: 'insulated_panel',
+          insulation: 120,
+          opening: 12,
+          thermalMass: 'medium',
+        },
+        results: {
+          indoorTemp: isCold ? 17.5 : 23.0,
+          solarGain: 5.4,
+          heatLoss: -9.8,
+          comfortHours: 19.0,
+          heatingDemand: 2.1,
+          uValue: 0.22,
+          weight: 2350,
+          cost: 110000,
+          comfortPercent: 82,
+          estimated: true
+        },
+        tradeoffNotes: 'Super-Insulated Envelope: Balanced compromise minimizing fabric losses.',
+        paretoRank: 1,
+      },
+    ]
+  }
+
+  async verify(params: any): Promise<any> {
+    const res = await this.getResults(params)
+    return {
+      ...res,
+      verifiedAgainstSurrogate: true,
+      deltaFromSurrogate: 0.12,
     }
   }
 }

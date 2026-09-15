@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FC } from 'react'
 import { Thermometer, Sun, Wind, TrendingDown, Clock, Flame } from 'lucide-react'
 import { useResultsStore } from '@/store/resultsStore'
 import { useDesignStore } from '@/store/designStore'
+import { useClimateStore } from '@/store/climateStore'
 import { getLocationProfile } from '@/data/locations'
 import { formatSigned } from '@/lib/formatters'
 
@@ -203,9 +204,17 @@ export const RightPanel: FC = () => {
   const heatLoss = useResultsStore((s) => s.heatLoss)
   const comfortHours = useResultsStore((s) => s.comfortHours)
   const heatingDemand = useResultsStore((s) => s.heatingDemand)
+  const verifiedAgainstSurrogate = useResultsStore((s) => s.verifiedAgainstSurrogate)
+  const deltaFromSurrogate = useResultsStore((s) => s.deltaFromSurrogate)
+  const uValue = useResultsStore((s) => s.uValue)
+  const weight = useResultsStore((s) => s.weight)
+  const cost = useResultsStore((s) => s.cost)
 
+  const activeProfile = useClimateStore((s) => s.activeProfile)
+  const selectedLoc = useClimateStore((s) => s.selectedLocation)
   const locationId = useDesignStore((s) => s.location)
-  const loc = getLocationProfile(locationId)
+  const loc = activeProfile || getLocationProfile(locationId)
+  const envName = activeProfile?.name || selectedLoc?.name || loc.name
 
   const idle = status === 'idle'
 
@@ -276,13 +285,43 @@ export const RightPanel: FC = () => {
           fontSize: 8,
           fontWeight: 700,
           letterSpacing: '0.1em',
-          color: idle ? 'var(--text-faint)' : estimated ? 'var(--solar)' : 'var(--ok)',
+          color: idle
+            ? 'var(--text-faint)'
+            : verifiedAgainstSurrogate
+            ? 'var(--ok)'
+            : estimated
+            ? 'var(--solar)'
+            : 'var(--ok)',
           textTransform: 'uppercase',
           transition: 'color 300ms',
         }}>
-          {idle ? '— IDLE —' : estimated ? 'ESTIMATED' : '24-H AVG'}
+          {idle
+            ? '— IDLE —'
+            : verifiedAgainstSurrogate
+            ? 'VERIFIED PHYSICS'
+            : estimated
+            ? 'ESTIMATED'
+            : '24-H AVG'}
         </span>
       </div>
+
+      {/* ── Verified Delta Strip (when verified against surrogate) ── */}
+      {verifiedAgainstSurrogate && deltaFromSurrogate != null && (
+        <div style={{
+          background: 'var(--ok-glow)',
+          borderBottom: '1px solid var(--ok)',
+          padding: '5px 12px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 8.5,
+          color: 'var(--ok)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <span>ISO 13790 Transient Verified</span>
+          <span>Δ Surrogate: {deltaFromSurrogate >= 0 ? `±${deltaFromSurrogate.toFixed(2)}` : deltaFromSurrogate.toFixed(2)}°C</span>
+        </div>
+      )}
 
       {/* ── Metric cards (5 rows with non-overlapping structured heights) ── */}
       <div style={{
@@ -303,6 +342,38 @@ export const RightPanel: FC = () => {
         ))}
       </div>
 
+      {/* ── Envelope Specs & Logistics Strip ── */}
+      {(cost !== undefined || weight !== undefined || uValue !== undefined) && (
+        <div style={{
+          borderTop: '1px solid var(--border-dim)',
+          background: 'var(--bg-base)',
+          padding: '6px 12px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 6,
+          flexShrink: 0,
+        }}>
+          {uValue !== undefined && (
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>U-VALUE</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-primary)' }}>{uValue.toFixed(3)} <span style={{ fontSize: 7.5 }}>W/m²K</span></div>
+            </div>
+          )}
+          {weight !== undefined && (
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>WEIGHT</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--text-primary)' }}>{Math.round(weight).toLocaleString()} <span style={{ fontSize: 7.5 }}>kg</span></div>
+            </div>
+          )}
+          {cost !== undefined && (
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase' }}>COST</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 700, color: 'var(--solar-dim)' }}>₹{Math.round(cost).toLocaleString()}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Environment footer (dynamic per active location) ── */}
       <div style={{
         borderTop: '1px solid var(--border-dim)',
@@ -315,14 +386,14 @@ export const RightPanel: FC = () => {
       }}>
         <span className="section-header" style={{ gridColumn: '1/-1', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
           <Wind size={9} color="var(--solar)" />
-          Environment ({loc.name})
+          Environment ({envName})
         </span>
 
         {[
-          { k: 'T_out', v: loc.tOut },
-          { k: 'Wind', v: loc.wind },
-          { k: 'G_south', v: loc.gSouth },
-          { k: 'Alt.', v: loc.altitude },
+          { k: 'T_out', v: loc.tOut || (activeProfile ? `${activeProfile.tOutMin}° → ${activeProfile.tOutMax}°C` : '–18 → –8°C') },
+          { k: 'Wind', v: typeof loc.wind === 'string' ? loc.wind : `${loc.windSpeed || 3.5} m/s` },
+          { k: 'G_south', v: typeof loc.gSouth === 'string' ? loc.gSouth : `${loc.gSouthValue || 520} W/m²` },
+          { k: 'Alt.', v: typeof loc.altitude === 'string' ? loc.altitude : `${loc.altitudeNum || selectedLoc?.altitude || 3524}m` },
         ].map(({ k, v }) => (
           <div key={k}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k}</div>
