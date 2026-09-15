@@ -18,5 +18,6 @@ __pycache__/
 *.cgns
 *.inp
 ansys_fluent_scratch/
+*.py[cod]
 .pytest_cache/
 
