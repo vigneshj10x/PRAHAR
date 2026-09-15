@@ -83,7 +83,16 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
   })
 
   return (
-    <div>
+    <div
+      style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 4,
+        padding: 8,
+        color: '#0f172a',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+      }}
+    >
       {/* View Mode & Filter Search Controls */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
         <div
@@ -91,14 +100,14 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
             flex: 1,
             display: 'flex',
             alignItems: 'center',
-            background: 'var(--bg-input)',
-            border: '1px solid var(--border-base)',
-            borderRadius: 2,
-            padding: '2px 6px',
-            gap: 4,
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderRadius: 3,
+            padding: '3px 8px',
+            gap: 6,
           }}
         >
-          <Search size={10} color="var(--text-muted)" />
+          <Search size={11} color="#64748b" />
           <input
             id="param-shape-search"
             aria-label="Filter 25 shelter geometries"
@@ -112,8 +121,9 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
               border: 'none',
               outline: 'none',
               fontFamily: 'var(--font-mono)',
-              fontSize: 8.5,
-              color: 'var(--text-primary)',
+              fontSize: 9,
+              color: '#0f172a',
+              fontWeight: 500,
             }}
           />
         </div>
@@ -123,11 +133,11 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
           onClick={() => setViewMode(viewMode === 'grid' ? 'select' : 'grid')}
           title={viewMode === 'grid' ? 'Switch to Compact Select List' : 'Switch to Visual Card Grid'}
           style={{
-            padding: '4px 6px',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-base)',
-            borderRadius: 2,
-            color: 'var(--solar)',
+            padding: '4px 7px',
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderRadius: 3,
+            color: '#0284c7',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -138,7 +148,7 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
       </div>
 
       {/* Category Filter Pills */}
-      <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4, marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 4, marginBottom: 8 }}>
         {[
           { id: 'all', label: 'All (25)' },
           { id: 'prismatic', label: 'Prismatic' },
@@ -155,16 +165,17 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
               id={`geom-cat-${cat.id}`}
               onClick={() => setShapeCategoryFilter(cat.id)}
               style={{
-                padding: '2px 5px',
+                padding: '2px 7px',
                 fontFamily: 'var(--font-mono)',
-                fontSize: 7.5,
-                fontWeight: isActive ? 700 : 500,
-                background: isActive ? 'var(--solar-glow)' : 'var(--bg-input)',
-                color: isActive ? 'var(--solar)' : 'var(--text-muted)',
-                border: `1px solid ${isActive ? 'var(--solar)' : 'var(--border-dim)'}`,
-                borderRadius: 2,
+                fontSize: 8,
+                fontWeight: isActive ? 700 : 600,
+                background: isActive ? '#0284c7' : '#f1f5f9',
+                color: isActive ? '#ffffff' : '#475569',
+                border: `1px solid ${isActive ? '#0284c7' : '#e2e8f0'}`,
+                borderRadius: 3,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                transition: 'all 120ms',
               }}
             >
               {cat.label}
@@ -181,8 +192,8 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
-            gap: 4,
-            maxHeight: 180,
+            gap: 5,
+            maxHeight: 200,
             overflowY: 'auto',
             paddingRight: 2,
           }}
@@ -208,15 +219,16 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   alignItems: 'flex-start',
-                  padding: '5px 7px',
-                  background: isSelected ? 'var(--solar-glow)' : 'var(--bg-surface)',
-                  border: `1px solid ${isSelected ? 'var(--solar)' : 'var(--border-dim)'}`,
-                  borderRadius: 2,
+                  padding: '6px 8px',
+                  background: isSelected ? '#f0f9ff' : '#ffffff',
+                  border: `1px solid ${isSelected ? '#0284c7' : '#e2e8f0'}`,
+                  borderRadius: 3,
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 120ms',
-                  minHeight: 46,
+                  minHeight: 48,
                   outline: 'none',
+                  boxShadow: isSelected ? '0 1px 4px rgba(2, 132, 199, 0.15)' : 'none',
                 }}
               >
                 <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -225,21 +237,21 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
                       fontFamily: 'var(--font-mono)',
                       fontSize: 8.5,
                       fontWeight: isSelected ? 700 : 600,
-                      color: isSelected ? 'var(--solar)' : 'var(--text-primary)',
+                      color: isSelected ? '#0369a1' : '#0f172a',
                       lineHeight: 1.1,
                     }}
                   >
                     {s.label}
                   </span>
-                  {isSelected && <Check size={10} color="var(--solar)" />}
+                  {isSelected && <Check size={11} color="#0284c7" strokeWidth={2.5} />}
                 </div>
 
-                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                   <span
                     style={{
                       fontFamily: 'var(--font-mono)',
-                      fontSize: 6.5,
-                      color: 'var(--text-muted)',
+                      fontSize: 7,
+                      color: '#64748b',
                       textTransform: 'uppercase',
                     }}
                   >
@@ -250,10 +262,10 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
                       fontFamily: 'var(--font-mono)',
                       fontSize: 6.5,
                       fontWeight: 700,
-                      padding: '0 3px',
-                      borderRadius: 1,
-                      background: isSelected ? 'var(--solar)' : 'var(--bg-input)',
-                      color: isSelected ? '#000' : 'var(--text-muted)',
+                      padding: '1px 4px',
+                      borderRadius: 2,
+                      background: isSelected ? '#0284c7' : '#e2e8f0',
+                      color: isSelected ? '#ffffff' : '#475569',
                     }}
                   >
                     {s.badge}
@@ -272,19 +284,19 @@ export const GeometrySelector: FC<GeometrySelectorProps> = ({ shape, onChange })
             onChange={(e) => onChange(e.target.value as ShapeType)}
             style={{
               width: '100%',
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border-base)',
-              color: 'var(--text-primary)',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
               fontFamily: 'var(--font-ui)',
               fontSize: 9.5,
-              borderRadius: 2,
+              borderRadius: 3,
               padding: '4px 6px',
               outline: 'none',
             }}
           >
             {SHAPE_CATEGORIES.flatMap((c) =>
               c.shapes.map((s) => (
-                <option key={s.value} value={s.value} style={{ background: '#0d121c', color: '#f8fafc' }}>
+                <option key={s.value} value={s.value} style={{ background: '#ffffff', color: '#0f172a' }}>
                   {s.label} [{s.badge}]
                 </option>
               ))

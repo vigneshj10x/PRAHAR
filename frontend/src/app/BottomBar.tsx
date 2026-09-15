@@ -1,9 +1,11 @@
 import { useState, useEffect, type FC } from 'react'
-import { Play, Zap, GitCompare, HelpCircle, FileText, CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Cpu } from 'lucide-react'
+import { Play, Zap, GitCompare, HelpCircle, FileText, CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Cpu, Box, Eye } from 'lucide-react'
 import { useDesignStore }  from '@/store/designStore'
 import { useResultsStore } from '@/store/resultsStore'
 import { useClimateStore } from '@/store/climateStore'
 import { useUIModalStore } from '@/store/uiModalStore'
+import { useNavigationStore } from '@/store/navigationStore'
+import { useVisualizationStore } from '@/store/visualizationStore'
 import { getSimulationService } from '@/services/index'
 import type { DesignParams, SimulationResult, HourlyReplayPoint, CandidateDesign, RecommendRequest } from '@/domain'
 import { LOCATIONS } from '@/data/locations'
@@ -50,6 +52,16 @@ export const BottomBar: FC = () => {
   const openValidation         = useUIModalStore(s => s.openValidation)
   const activeModal            = useUIModalStore(s => s.activeModal)
   const optimize               = useUIModalStore(s => s.optimize)
+
+  const openWorkbench          = useNavigationStore(s => s.openWorkbench)
+  const vizMode                = useVisualizationStore(s => s.mode)
+  const setVizMode             = useVisualizationStore(s => s.setMode)
+
+  const cyclePerceptionMode = () => {
+    const modes = ['normal', 'temperature', 'solargain', 'heatflow'] as const
+    const nextIdx = (modes.indexOf(vizMode) + 1) % modes.length
+    setVizMode(modes[nextIdx])
+  }
 
   const [hourlyData, setHourlyData] = useState<HourlyReplayPoint[]>([])
 
@@ -539,7 +551,59 @@ export const BottomBar: FC = () => {
 
         <div style={{ width: 1, height: 18, background: 'var(--border-dim)', margin: '0 2px', flexShrink: 0 }} />
 
-        {/* GROUP 4 — ADVANCED */}
+        {/* GROUP 4 — ADVANCED & VIEW CONTROLS */}
+        <button
+          id="btn-bottom-3d-view"
+          onClick={openWorkbench}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 9px',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-base)',
+            borderRadius: 4,
+            fontSize: 9.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+          title="Switch to 3D Digital Twin View"
+        >
+          <Box size={11} color="var(--solar)" />
+          <span>3D VIEW</span>
+        </button>
+
+        <button
+          id="btn-bottom-perception"
+          onClick={cyclePerceptionMode}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 36,
+            padding: '0 9px',
+            background: vizMode !== 'normal' ? 'rgba(2, 132, 199, 0.14)' : 'var(--bg-surface)',
+            color: vizMode !== 'normal' ? 'var(--cool)' : 'var(--text-secondary)',
+            border: `1px solid ${vizMode !== 'normal' ? 'var(--cool)' : 'var(--border-base)'}`,
+            borderRadius: 4,
+            fontSize: 9.5,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+          title={`Perception mode: ${vizMode.toUpperCase()} (Click to cycle thermal/sensor perception filters)`}
+        >
+          <Eye size={11} color={vizMode !== 'normal' ? 'var(--cool)' : 'var(--solar)'} />
+          <span>PERCEPTION ({vizMode.toUpperCase()})</span>
+        </button>
+
         <button
           id="btn-validation"
           onClick={openValidation}

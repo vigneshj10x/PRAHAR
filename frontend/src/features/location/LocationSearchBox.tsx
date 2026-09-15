@@ -13,13 +13,10 @@ import {
   Loader2,
   X,
   AlertCircle,
-  CheckCircle2,
   Database,
   ArrowRight,
-  Maximize2,
 } from 'lucide-react'
 import { useClimateStore, type LocationItem } from '@/store/climateStore'
-import { useNavigationStore } from '@/store/navigationStore'
 import { LocationPickerMap } from './LocationPickerMap'
 
 export const LocationSearchBox: FC = () => {
@@ -29,7 +26,6 @@ export const LocationSearchBox: FC = () => {
     activeProfile,
     isLoading,
     error,
-    dataSource,
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -37,12 +33,9 @@ export const LocationSearchBox: FC = () => {
     searchPlaces,
     clearSearchResults,
     fetchClimateForLocation,
-    selectPreset,
+    setPharagrName,
   } = useClimateStore()
 
-  const openMap = useNavigationStore((s) => s.openMap)
-
-  const [isMapExpanded, setIsMapExpanded] = useState(false)
   const [localLat, setLocalLat] = useState<number>(selectedLocation.lat)
   const [localLon, setLocalLon] = useState<number>(selectedLocation.lon)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -105,16 +98,62 @@ export const LocationSearchBox: FC = () => {
     fetchClimateForLocation(localLat, localLon, selectedLocation.name, selectedLocation.altitude)
   }
 
-  const PRESETS = [
-    { id: 'leh', label: 'Leh', sub: '3524m' },
-    { id: 'jaisalmer', label: 'Jaisalmer', sub: '225m' },
-    { id: 'delhi', label: 'Delhi', sub: '216m' },
-    { id: 'kochi', label: 'Kochi', sub: '4m' },
-    { id: 'srinagar', label: 'Srinagar', sub: '1585m' },
-  ]
-
   return (
     <div className="location-flow-container" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* ── Pharagr Name Display & Entry ── */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-base)',
+          borderRadius: 3,
+          padding: '4px 6px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 7.5,
+              fontWeight: 700,
+              color: 'var(--solar)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Pharagr Name
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 7,
+              color: 'var(--text-muted)',
+            }}
+          >
+            SECTOR ID
+          </span>
+        </div>
+        <input
+          id="input-pharagr-name"
+          type="text"
+          value={selectedLocation.pharagrName || 'Pharagr Sector Alpha'}
+          onChange={(e) => setPharagrName(e.target.value)}
+          placeholder="Enter Pharagr Name..."
+          style={{
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            fontWeight: 700,
+            padding: 0,
+          }}
+        />
+      </div>
+
       {/* ── 1. Search Box with Autocomplete ── */}
       <div ref={searchContainerRef} style={{ position: 'relative' }}>
         <div
@@ -234,50 +273,7 @@ export const LocationSearchBox: FC = () => {
         )}
       </div>
 
-      {/* ── 2. Quick Preset Chips ── */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {PRESETS.map((p) => {
-          const isActive =
-            selectedLocation.id === p.id ||
-            selectedLocation.name.toLowerCase().includes(p.label.toLowerCase())
-          return (
-            <button
-              key={p.id}
-              onClick={() => selectPreset(p.id)}
-              style={{
-                flex: 1,
-                minWidth: 42,
-                padding: '3px 4px',
-                background: isActive ? 'var(--solar-glow)' : 'var(--bg-surface)',
-                border: `1px solid ${isActive ? 'var(--solar)' : 'var(--border-dim)'}`,
-                borderRadius: 2,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 1,
-                transition: 'all 150ms',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 8,
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? 'var(--solar)' : 'var(--text-primary)',
-                }}
-              >
-                {p.label}
-              </span>
-              <span style={{ fontSize: 6.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {p.sub}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ── 3. Interactive Leaflet Map ── */}
+      {/* ── 3. Embedded Interactive Coordinate Map ── */}
       <div>
         <div
           style={{
@@ -302,55 +298,15 @@ export const LocationSearchBox: FC = () => {
             <Compass size={9} color="var(--solar)" />
             Interactive Coordinate Map
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={openMap}
-              style={{
-                background: 'rgba(217, 119, 6, 0.15)',
-                border: '1px solid rgba(217, 119, 6, 0.4)',
-                borderRadius: 2,
-                fontFamily: 'var(--font-mono)',
-                fontSize: 7.5,
-                fontWeight: 600,
-                color: 'var(--solar)',
-                cursor: 'pointer',
-                padding: '1px 5px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-              }}
-              title="Open full-screen GIS interactive map page"
-            >
-              <Maximize2 size={8} />
-              Full Map View
-            </button>
-            <button
-              onClick={() => setIsMapExpanded(!isMapExpanded)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 7.5,
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: 0,
-              }}
-            >
-              {isMapExpanded ? 'COLLAPSE MAP ▲' : 'EXPAND MAP ▼'}
-            </button>
-          </div>
         </div>
 
-        {isMapExpanded && (
-          <LocationPickerMap
-            lat={localLat}
-            lon={localLon}
-            name={selectedLocation.name}
-            onLocationChange={handleMapPinChange}
-            height={135}
-          />
-        )}
+        <LocationPickerMap
+          lat={localLat}
+          lon={localLon}
+          name={selectedLocation.name}
+          onLocationChange={handleMapPinChange}
+          height={150}
+        />
       </div>
 
       {/* ── 4. Coordinates Readout / Direct Entry ── */}
@@ -466,7 +422,7 @@ export const LocationSearchBox: FC = () => {
         {isLoading ? (
           <>
             <Loader2 size={11} className="spin" color="var(--solar)" />
-            <span>Fetching Open-Meteo & NASA POWER…</span>
+            <span>Fetching Climate Telemetry…</span>
           </>
         ) : (
           <>
@@ -477,7 +433,7 @@ export const LocationSearchBox: FC = () => {
         )}
       </button>
 
-      {/* ── 6. Error & Status Banner ── */}
+      {/* ── 6. Error Banner (Only shown on error, raw debug content removed) ── */}
       {error && (
         <div
           style={{
@@ -496,32 +452,6 @@ export const LocationSearchBox: FC = () => {
         >
           <AlertCircle size={11} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>{error}</div>
-        </div>
-      )}
-
-      {/* Source Telemetry Badge */}
-      {!error && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 7,
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--text-muted)',
-            padding: '2px 4px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <CheckCircle2 size={8} color="var(--ok)" />
-            <span>SOURCE:</span>
-            <span style={{ color: 'var(--solar)', fontWeight: 600, textTransform: 'uppercase' }}>
-              {dataSource === 'merged'
-                ? 'OPEN-METEO + NASA POWER'
-                : dataSource.toUpperCase()}
-            </span>
-          </div>
-          <span>LIVE CLIMATE API</span>
         </div>
       )}
     </div>

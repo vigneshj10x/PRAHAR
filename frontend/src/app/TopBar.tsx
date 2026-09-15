@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Wifi, Box, Map, Layers, Shield, ChevronRight, Check } from 'lucide-react'
+import { Wifi, Layers, Shield, ChevronRight, Check } from 'lucide-react'
 import { useDesignStore } from '@/store/designStore'
 import { useClimateStore } from '@/store/climateStore'
 import { useNavigationStore } from '@/store/navigationStore'
@@ -13,7 +13,6 @@ export const TopBar: FC = () => {
   const loc = activeProfile || getLocationProfile(locationId)
 
   const activePage = useNavigationStore((s) => s.activePage)
-  const openMap = useNavigationStore((s) => s.openMap)
   const openWorkbench = useNavigationStore((s) => s.openWorkbench)
   const openLayerPage = useNavigationStore((s) => s.openLayerPage)
 
@@ -189,54 +188,6 @@ export const TopBar: FC = () => {
         aria-label="Secondary Product Views"
       >
         <button
-          onClick={openWorkbench}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            height: 24,
-            padding: '0 8px',
-            borderRadius: 2,
-            fontSize: 9.5,
-            fontWeight: activePage === 'workbench' ? 600 : 500,
-            fontFamily: 'var(--font-mono)',
-            cursor: 'pointer',
-            border: activePage === 'workbench' ? '1px solid var(--border-dim)' : '1px solid transparent',
-            background: activePage === 'workbench' ? 'var(--bg-surface)' : 'transparent',
-            color: activePage === 'workbench' ? 'var(--text-secondary)' : 'var(--text-muted)',
-            transition: 'all 0.12s ease',
-          }}
-          title="Switch to 3D Digital Twin Workstation"
-        >
-          <Box size={11} color="currentColor" />
-          <span>3D TWIN</span>
-        </button>
-
-        <button
-          onClick={openMap}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            height: 24,
-            padding: '0 8px',
-            borderRadius: 2,
-            fontSize: 9.5,
-            fontWeight: activePage === 'map' ? 600 : 500,
-            fontFamily: 'var(--font-mono)',
-            cursor: 'pointer',
-            border: activePage === 'map' ? '1px solid var(--solar)' : '1px solid transparent',
-            background: activePage === 'map' ? 'rgba(217, 119, 6, 0.1)' : 'transparent',
-            color: activePage === 'map' ? 'var(--solar)' : 'var(--text-muted)',
-            transition: 'all 0.12s ease',
-          }}
-          title="Open Dedicated Full Map View"
-        >
-          <Map size={11} color="currentColor" />
-          <span>MAP</span>
-        </button>
-
-        <button
           onClick={() => openLayerPage()}
           style={{
             display: 'flex',
@@ -340,19 +291,17 @@ export const TopBar: FC = () => {
 
       {/* Right Telemetry Readouts (Calm Header Layout) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={openMap}
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-base)',
-            cursor: 'pointer',
             padding: '3px 8px',
             borderRadius: 3,
           }}
-          title="Click to view site microclimate on Full Map"
+          title="Current site microclimate location"
         >
           <div className="status-dot solar" />
           <span
@@ -367,7 +316,7 @@ export const TopBar: FC = () => {
           >
             {loc.name.split(',')[0]}
           </span>
-        </button>
+        </div>
 
         <span
           style={{

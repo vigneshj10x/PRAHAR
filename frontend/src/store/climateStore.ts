@@ -15,6 +15,7 @@ import { useRiskStore } from './riskStore'
 export interface LocationItem {
   id?: string
   name: string
+  pharagrName?: string
   city?: string
   region?: string
   country?: string
@@ -47,6 +48,7 @@ interface ClimateState {
   searchPlaces: (q: string) => Promise<void>
   clearSearchResults: () => void
   setSelectedLocation: (loc: LocationItem) => void
+  setPharagrName: (name: string) => void
   fetchClimateForLocation: (lat: number, lon: number, name?: string, altitude?: number) => Promise<ClimateProfile | null>
   selectPreset: (presetId: string) => Promise<void>
 }
@@ -56,6 +58,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://lo
 const INITIAL_LOCATION: LocationItem = {
   id: 'leh',
   name: 'Leh, Ladakh',
+  pharagrName: 'Pharagr Sector Alpha',
   region: 'Ladakh (High Altitude Cold Desert)',
   lat: 34.1526,
   lon: 77.5771,
@@ -78,6 +81,15 @@ export const useClimateStore = create<ClimateState>((set, get) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
   clearSearchResults: () => set({ searchResults: [], searchError: null }),
+
+  setPharagrName: (pharagrName) => {
+    set((state) => ({
+      selectedLocation: {
+        ...state.selectedLocation,
+        pharagrName,
+      },
+    }))
+  },
 
   setSelectedLocation: (loc) => {
     set({ selectedLocation: loc })
