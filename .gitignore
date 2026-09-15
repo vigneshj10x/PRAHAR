@@ -9,6 +9,15 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 __pycache__/
+*.pyc
+*.trn
+*.msh
+*.db
+*.bdf
+*.cdb
+*.cgns
+*.inp
+ansys_fluent_scratch/
 *.py[cod]
 .pytest_cache/
 

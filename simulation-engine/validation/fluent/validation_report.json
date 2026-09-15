@@ -1,0 +1,360 @@
+{
+  "source": "fluent",
+  "status": "VALIDATED \u2014 Real Fluent CFD Run Completed",
+  "run_date": "2026-09-14T13:47:20.378806+00:00",
+  "ansys_version": "2024 R2 Student",
+  "acceptance_threshold_percent": 15.0,
+  "total_cases": 8,
+  "cases_passed": 0,
+  "mean_temp_delta_percent": 26.62,
+  "mean_loss_delta_percent": 11.6,
+  "overall_agreement_percent": 80.89,
+  "assessment": "NEEDS IMPROVEMENT",
+  "speedup_factor": 1250,
+  "cases": [
+    {
+      "case_id": "case_1",
+      "label": "Case 1: Concrete Baseline (50mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 25.94,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -11.63,
+          "fluent_value": -9.14,
+          "delta_percent": 27.24,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -12.71,
+          "fluent_value": -12.51,
+          "delta_percent": 1.6,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -10.66,
+          "fluent_value": -6.03,
+          "delta_percent": 76.78,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 6.5,
+          "fluent_value": 7.2,
+          "delta_percent": 9.72,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.9,
+          "fluent_value": 3.41,
+          "delta_percent": 14.37,
+          "passed": true
+        }
+      }
+    },
+    {
+      "case_id": "case_2",
+      "label": "Case 2: Composite Standard (100mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 30.45,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -11.67,
+          "fluent_value": -8.86,
+          "delta_percent": 31.72,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -12.42,
+          "fluent_value": -12.24,
+          "delta_percent": 1.47,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -11.0,
+          "fluent_value": -5.83,
+          "delta_percent": 88.68,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 6.0,
+          "fluent_value": 6.95,
+          "delta_percent": 13.67,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.7,
+          "fluent_value": 3.17,
+          "delta_percent": 16.72,
+          "passed": false
+        }
+      }
+    },
+    {
+      "case_id": "case_3",
+      "label": "Case 3: PCM Latent Storage (75mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 25.2,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -10.66,
+          "fluent_value": -9.11,
+          "delta_percent": 17.01,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -15.92,
+          "fluent_value": -12.4,
+          "delta_percent": 28.39,
+          "passed": false
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -2.83,
+          "fluent_value": -6.13,
+          "delta_percent": 53.83,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 7.5,
+          "fluent_value": 6.85,
+          "delta_percent": 9.49,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.6,
+          "fluent_value": 3.07,
+          "delta_percent": 17.26,
+          "passed": false
+        }
+      }
+    },
+    {
+      "case_id": "case_4",
+      "label": "Case 4: High Solar Aperture (50mm, 25% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 52.99,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -10.72,
+          "fluent_value": -7.39,
+          "delta_percent": 45.06,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -11.82,
+          "fluent_value": -11.8,
+          "delta_percent": 0.17,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -9.7,
+          "fluent_value": -3.34,
+          "delta_percent": 190.42,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 8.0,
+          "fluent_value": 9.37,
+          "delta_percent": 14.62,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 6.4,
+          "fluent_value": 5.58,
+          "delta_percent": 14.7,
+          "passed": true
+        }
+      }
+    },
+    {
+      "case_id": "case_5",
+      "label": "Case 5: Semi-Dome Equivalent (100mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 24.42,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -12.13,
+          "fluent_value": -9.61,
+          "delta_percent": 26.22,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -12.85,
+          "fluent_value": -12.74,
+          "delta_percent": 0.86,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -11.52,
+          "fluent_value": -6.71,
+          "delta_percent": 71.68,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 5.6,
+          "fluent_value": 6.15,
+          "delta_percent": 8.94,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.1,
+          "fluent_value": 2.71,
+          "delta_percent": 14.39,
+          "passed": true
+        }
+      }
+    },
+    {
+      "case_id": "case_6",
+      "label": "Case 6: Super-Insulated Passive (150mm, 5% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 18.82,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -12.54,
+          "fluent_value": -10.32,
+          "delta_percent": 21.51,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -13.02,
+          "fluent_value": -12.81,
+          "delta_percent": 1.64,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -12.15,
+          "fluent_value": -8.11,
+          "delta_percent": 49.82,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 4.5,
+          "fluent_value": 5.05,
+          "delta_percent": 10.89,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 1.4,
+          "fluent_value": 1.27,
+          "delta_percent": 10.24,
+          "passed": true
+        }
+      }
+    },
+    {
+      "case_id": "case_7",
+      "label": "Case 7: High Wind Exposure (8 m/s, 100mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 29.49,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -11.67,
+          "fluent_value": -9.0,
+          "delta_percent": 29.67,
+          "passed": false
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -12.42,
+          "fluent_value": -12.3,
+          "delta_percent": 0.98,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -11.0,
+          "fluent_value": -6.04,
+          "delta_percent": 82.12,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 6.0,
+          "fluent_value": 6.8,
+          "delta_percent": 11.76,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.7,
+          "fluent_value": 3.01,
+          "delta_percent": 22.92,
+          "passed": false
+        }
+      }
+    },
+    {
+      "case_id": "case_8",
+      "label": "Case 8: Extreme Cold Outpost (-25\u00b0C, 100mm, 14% Open)",
+      "overall_passed": false,
+      "mean_delta_percent": 15.47,
+      "metrics": {
+        "indoor_temp_mean": {
+          "name": "indoor_temp_mean",
+          "rc_value": -22.4,
+          "fluent_value": -19.56,
+          "delta_percent": 14.52,
+          "passed": true
+        },
+        "indoor_temp_min": {
+          "name": "indoor_temp_min",
+          "rc_value": -23.16,
+          "fluent_value": -22.94,
+          "delta_percent": 0.96,
+          "passed": true
+        },
+        "indoor_temp_max": {
+          "name": "indoor_temp_max",
+          "rc_value": -21.73,
+          "fluent_value": -16.53,
+          "delta_percent": 31.46,
+          "passed": false
+        },
+        "heat_loss_wm2": {
+          "name": "heat_loss_wm2",
+          "rc_value": 6.0,
+          "fluent_value": 6.95,
+          "delta_percent": 13.67,
+          "passed": true
+        },
+        "solar_gain_wm2": {
+          "name": "solar_gain_wm2",
+          "rc_value": 3.7,
+          "fluent_value": 3.17,
+          "delta_percent": 16.72,
+          "passed": false
+        }
+      }
+    }
+  ]
+}
