@@ -39,6 +39,8 @@ except ImportError:
             hourly_solar_radiation: List[float] = field(default_factory=list)
             wind_speed: float = 3.5
             humidity_pct: float = 30.0
+            snow_covered: bool = True
+            wind_direction: float = 315.0
 
             def __post_init__(self):
                 if not self.hourly_outdoor_temp:
@@ -72,6 +74,7 @@ except ImportError:
             internal_gain_w: float = 280.0
             ach: float = 0.5
             greenhouse_mode: bool = False
+            n_occupants: Optional[int] = None
 
 
 @dataclass
@@ -112,6 +115,7 @@ class DesignParams:
             height=self.height,
             internal_gain_w=self.internal_gain_w,
             ach=self.ach,
+            n_occupants=self.n_occupants,
         )
 
 
@@ -147,6 +151,7 @@ def create_leh_winter_climate(wind_speed: float = 3.5, temp_offset: float = 0.0)
         hourly_solar_radiation=base_solar,
         wind_speed=wind_speed,
         humidity_pct=30.0,
+        snow_covered=True,
     )
 
 
