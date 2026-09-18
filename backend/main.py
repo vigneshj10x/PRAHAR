@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -134,6 +135,12 @@ app.add_middleware(
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
+
+@app.get("/api/ping")
+def ping():
+    """Keep-alive ping endpoint to prevent cold start idle sleep on Render free tier."""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
 
 @app.get("/api/health")
 def health_check():
