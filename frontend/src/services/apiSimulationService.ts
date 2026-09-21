@@ -85,7 +85,7 @@ export class ApiSimulationService implements SimulationService {
       },
       shape: params.shape || 'rectangular',
       orientation: params.orientation ?? 180,
-      wallMaterial: params.wallMaterial || 'adobe',
+      wallMaterial: params.wallMaterial || 'puf_sandwich_panel',
       roofMaterial: params.roofMaterial || 'timber_insulated_roof',
       glazingMaterial: params.glazingMaterial || 'glazing_low_e',
       insulation: params.insulation ?? 100,
@@ -95,6 +95,13 @@ export class ApiSimulationService implements SimulationService {
       width: params.width ?? 4.0,
       height: params.height ?? 2.5,
       greenhouseMode: Boolean(params.greenhouseMode),
+      shelterPurpose: params.shelterPurpose || 'troop_habitation',
+      shelterPermanence: params.shelterPermanence || 'semi_permanent',
+      deploymentMethod: params.deploymentMethod || 'road_bound',
+      hardening: params.hardening || 'non_ballistic',
+      buildStartDate: params.buildStartDate,
+      buildDurationYears: params.buildDurationYears,
+      availableMaterials: params.availableMaterials,
     }
   }
 
@@ -212,6 +219,13 @@ export class ApiSimulationService implements SimulationService {
         length: params.length,
         occupants: params.occupants,
         minComfortPercent: params.minComfortPercent,
+        shelterPurpose: params.shelterPurpose,
+        shelterPermanence: params.shelterPermanence,
+        deploymentMethod: params.deploymentMethod,
+        hardening: params.hardening,
+        buildStartDate: params.buildStartDate,
+        buildDurationYears: params.buildDurationYears,
+        availableMaterials: params.availableMaterials,
       },
     }
     const candidates = await this.recommend(req)

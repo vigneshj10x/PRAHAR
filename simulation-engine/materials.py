@@ -25,6 +25,9 @@ class Material:
     cost: float                       # INR (₹) / m²
     weight: float                     # kg / m²
     carbon_factor: Optional[float]    # kgCO2e / kg
+    description: Optional[str] = ""
+    deployment_compatibility: List[str] = ()  # type: ignore
+    shelter_type_compatibility: List[str] = ()  # type: ignore
 
     @property
     def thickness_m(self) -> float:
@@ -56,11 +59,15 @@ class MaterialDatabase:
 
     def reload(self) -> None:
         """Loads and parses JSON material definitions."""
+        if not self.data_path.exists():
+            return
         with open(self.data_path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
         self._materials = {}
         for entry in raw_data:
+            deploy = entry.get("deploymentCompatibility") or entry.get("deployment_compatibility") or []
+            shelter_types = entry.get("shelterTypeCompatibility") or entry.get("shelter_type_compatibility") or []
             mat = Material(
                 id=entry["id"],
                 name=entry["name"],
@@ -76,6 +83,9 @@ class MaterialDatabase:
                 cost=float(entry["cost"]),
                 weight=float(entry["weight"]),
                 carbon_factor=float(entry["carbonFactor"]) if entry.get("carbonFactor") is not None else None,
+                description=entry.get("description", ""),
+                deployment_compatibility=list(deploy),
+                shelter_type_compatibility=list(shelter_types),
             )
             self._materials[mat.id] = mat
 

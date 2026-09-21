@@ -54,7 +54,16 @@ Smart India Hackathon Prototype (PS 26051, DRDO)
 • Solar Peak:        ${loc.solarPotential}
 • Design Wind Speed: ${loc.wind}
 
-2. SHELTER SPECIFICATION
+2. OPERATIONAL & LOGISTICS PROFILE
+• Purpose:            ${design.shelterPurpose.toUpperCase()}
+• Shelter Type:       ${design.shelterType.toUpperCase()}
+• Permanence:         ${design.shelterPermanence.toUpperCase()}
+• Deployment Method:  ${design.deploymentMethod.toUpperCase()} (Max Panel Weight: ${design.deploymentMethod === 'porter_carried' ? '8 kg/m²' : design.deploymentMethod === 'heliborne' ? '30 kg/m²' : 'No Limit'})
+• Hardening Level:    ${design.hardening.toUpperCase()}
+• Construction Start: ${design.buildStartDate} (${design.buildDurationYears} Year Horizon)
+• Climate Projection: ${new Date(design.buildStartDate).getTime() - new Date().getTime() > 90 * 86400000 ? 'CMIP6 Future Climate Projection (MRI-AGCM3-2-S)' : 'Historical Baseline Climate'}
+
+3. SHELTER SPECIFICATION
 • Geometry:          ${design.shape.toUpperCase()} (${design.length}m L × ${design.width}m W × ${design.height}m H)
 • Floor Area:        ${floorArea} m² | Volume: ${volume} m³ | A/V Ratio: ${avRatio}
 • Orientation:       ${design.orientation}° (South-relative)
@@ -63,7 +72,7 @@ Smart India Hackathon Prototype (PS 26051, DRDO)
 • Aperture / Glaze:  ${design.openingRatio}%
 • Thermal Mass:      ${design.thermalMass.toUpperCase()}
 
-3. 24-HOUR THERMAL PERFORMANCE EVALUATION (${isSimulated ? (results.estimated ? 'ESTIMATED / INTERPOLATED' : 'EXACT REFERENCE MATCH') : 'AWAITING SIMULATION'})
+4. 24-HOUR THERMAL PERFORMANCE EVALUATION (${isSimulated ? (results.estimated ? 'ESTIMATED / INTERPOLATED' : 'EXACT REFERENCE MATCH') : 'AWAITING SIMULATION'})
 • 24h Mean Indoor Temp: ${isSimulated ? (results.indoorTemp >= 0 ? '+' : '') + results.indoorTemp.toFixed(1) + ' °C' : 'N/A'}
 • Solar Thermal Gain:   ${isSimulated ? results.solarGain.toFixed(0) + ' W/m²' : 'N/A'}
 • Fabric Heat Loss:     ${isSimulated ? results.heatLoss.toFixed(0) + ' W/m²' : 'N/A'}
@@ -223,7 +232,61 @@ Not yet validated against CFD/ANSYS or physical field sensors.
             </div>
           </div>
 
-          {/* Section 2: Shelter Geometry & Envelope Breakdown */}
+          {/* Operational & Logistics Profile */}
+          <div>
+            <div style={{
+              fontFamily:    'var(--font-mono)',
+              fontSize:      9,
+              fontWeight:    700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color:         'var(--text-muted)',
+              marginBottom:  6,
+              display:       'flex',
+              alignItems:    'center',
+              gap:           5,
+            }}>
+              <ShieldCheck size={11} color="var(--accent)" />
+              1. Operational & Logistics Profile
+            </div>
+
+            <div style={{
+              background:          'var(--bg-base)',
+              border:              '1px solid var(--border-dim)',
+              borderRadius:        4,
+              padding:             '10px 12px',
+              display:             'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap:                 '8px 12px',
+            }}>
+              {[
+                { l: 'Purpose', v: design.shelterPurpose.replace(/_/g, ' ').toUpperCase() },
+                { l: 'Shelter Type', v: design.shelterType.replace(/_/g, ' ').toUpperCase() },
+                { l: 'Permanence', v: design.shelterPermanence.toUpperCase() },
+                {
+                  l: 'Logistics / Max Panel',
+                  v: design.deploymentMethod === 'porter_carried' ? 'PORTER (≤8 kg/m²)' :
+                     design.deploymentMethod === 'heliborne' ? 'HELIBORNE (≤30 kg/m²)' : 'ROAD-BOUND',
+                },
+                { l: 'Hardening', v: design.hardening.replace(/_/g, ' ').toUpperCase() },
+                { l: 'Start Date', v: design.buildStartDate },
+                { l: 'Horizon', v: `${design.buildDurationYears} Years` },
+                {
+                  l: 'Climate Source',
+                  v: (new Date(design.buildStartDate).getTime() - new Date().getTime()) > 90 * 86400000
+                    ? 'CMIP6 PROJECTION'
+                    : 'BASELINE METEO',
+                },
+              ].map((item, idx) => (
+                <div key={idx}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 7.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{item.l}</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>{item.v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Shelter Specifications */}
           <div>
             <div style={{
               fontFamily:    'var(--font-mono)',
@@ -238,11 +301,11 @@ Not yet validated against CFD/ANSYS or physical field sensors.
               gap:           5,
             }}>
               <Cpu size={11} color="var(--solar)" />
-              1. Envelope & Geometry Parameters
+              2. Shelter Envelope Parameters
             </div>
 
             <div style={{
-              background:          'var(--bg-panel)',
+              background:          'var(--bg-base)',
               border:              '1px solid var(--border-dim)',
               borderRadius:        4,
               padding:             '10px 12px',

@@ -24,7 +24,7 @@ import httpx
 from backend.database import get_db, init_db
 from backend.models import MaterialModel
 from backend.seed import seed_materials
-from backend.climate import get_climate_profile, geocode_place
+from backend.climate import get_climate_profile, geocode_place, fetch_future_climate_projection
 from backend.risk_assessment import get_disaster_risk_assessment
 from simulation_engine.engine import simulate, SimulationParams, ClimateInput
 from simulation_engine.materials import materials_db
@@ -66,6 +66,14 @@ class SimulationRequestModel(BaseModel):
     width: float = Field(default=4.0, description="Width in meters", ge=1.0, le=30.0)
     height: float = Field(default=2.5, description="Height in meters", ge=1.0, le=10.0)
     greenhouseMode: Optional[bool] = Field(default=False, description="Enable DIHAR high-aperture greenhouse thermal mode")
+    shelterPurpose: Optional[str] = Field(default="troop_habitation", description="Operational purpose")
+    shelterPermanence: Optional[str] = Field(default="semi_permanent", description="hasty | semi_permanent | permanent")
+    deploymentMethod: Optional[str] = Field(default="road_bound", description="road_bound | heliborne | porter_carried")
+    hardening: Optional[str] = Field(default="non_ballistic", description="non_ballistic | small_arms | artillery_hardened")
+    buildStartDate: Optional[str] = Field(default=None, description="ISO date string e.g. 2028-03-01")
+    buildDurationYears: Optional[int] = Field(default=1, description="Operational duration in years")
+    availableMaterials: Optional[List[str]] = Field(default_factory=list, description="Array of available material IDs")
+    shelterType: Optional[str] = Field(default=None, description="Specific military shelter type ID")
 
 
 class HourlyPointModel(BaseModel):
@@ -89,6 +97,9 @@ class SimulationResponseModel(BaseModel):
     comfortHours: float  # Compatibility alias
     weight: float
     cost: float
+    maxPanelWeightKgM2: Optional[float] = None
+    comfortMinC: Optional[float] = None
+    comfortMaxC: Optional[float] = None
     estimated: bool
 
 
@@ -99,11 +110,34 @@ class RecommendRequirementsModel(BaseModel):
     weightLimit: Optional[float] = None
     minComfortPercent: Optional[float] = None
     comfort_band: Optional[List[float]] = None
+    shelterPurpose: Optional[str] = None
+    shelterPermanence: Optional[str] = None
+    deploymentMethod: Optional[str] = None
+    hardening: Optional[str] = None
+    buildStartDate: Optional[str] = None
+    buildDurationYears: Optional[int] = None
+    availableMaterials: Optional[List[str]] = None
+    shelterType: Optional[str] = None
+    # Snake-case aliases
+    shelter_purpose: Optional[str] = None
+    shelter_permanence: Optional[str] = None
+    deployment_method: Optional[str] = None
+    build_start_date: Optional[str] = None
+    build_duration_years: Optional[int] = None
+    available_materials: Optional[List[str]] = None
 
 
 class RecommendRequestModel(BaseModel):
     location: Optional[LocationCoordinatesModel] = None
     requirements: Optional[RecommendRequirementsModel] = None
+    shelterPurpose: Optional[str] = None
+    shelterPermanence: Optional[str] = None
+    deploymentMethod: Optional[str] = None
+    hardening: Optional[str] = None
+    buildStartDate: Optional[str] = None
+    buildDurationYears: Optional[int] = None
+    availableMaterials: Optional[List[str]] = None
+    shelterType: Optional[str] = None
 
 
 class VerifyRequestModel(BaseModel):
@@ -177,6 +211,10 @@ def run_simulation(req: SimulationRequestModel):
             width=req.width,
             height=req.height,
             greenhouse_mode=bool(req.greenhouseMode),
+            shelter_purpose=req.shelterPurpose or "troop_habitation",
+            shelter_permanence=req.shelterPermanence or "semi_permanent",
+            deployment_method=req.deploymentMethod or "road_bound",
+            hardening=req.hardening or "non_ballistic",
         )
 
         hourly_temp = (req.location.hourly_outdoor_temp or req.location.hourlyOutdoorTemp) if req.location else None
@@ -220,6 +258,9 @@ def run_simulation(req: SimulationRequestModel):
             comfortHours=result.comfort_hours_5c,
             weight=result.weight,
             cost=result.cost,
+            maxPanelWeightKgM2=result.max_panel_weight_kg_m2,
+            comfortMinC=result.comfort_min_c,
+            comfortMaxC=result.comfort_max_c,
             estimated=result.estimated
         )
         print(f"[DIAGNOSTIC STEP 4][Backend Response Construction - /api/simulate]:\n  meanTemp={resp.meanIndoorTemp}, heatLoss={resp.heatLoss}, solarGain={resp.solarGain}, heatingDemand={resp.heatingDemand}, cost={resp.cost}, weight={resp.weight}", flush=True)
@@ -243,7 +284,7 @@ def run_simulation(req: SimulationRequestModel):
 
 
 @app.post("/api/recommend")
-def recommend_designs_endpoint(req: RecommendRequestModel):
+async def recommend_designs_endpoint(req: RecommendRequestModel):
     """
     Evaluates multi-objective parameter space using the fast ML surrogate model
     to generate a Pareto-optimal set of design recommendations per docs/api-contract.md.
@@ -272,10 +313,53 @@ def recommend_designs_endpoint(req: RecommendRequestModel):
     }
     req_dict = req.requirements.dict(exclude_none=True) if req.requirements else {}
 
+    # Merge top-level fields into req_dict
+    for f in [
+        "shelterPurpose", "shelterPermanence", "deploymentMethod", "hardening",
+        "buildStartDate", "buildDurationYears", "availableMaterials", "shelterType"
+    ]:
+        val = getattr(req, f, None)
+        if val is not None and f not in req_dict:
+            req_dict[f] = val
+
+    # Future climate projection check (CMIP6 if buildStartDate > 90 days out)
+    build_start_date = req_dict.get("buildStartDate") or req_dict.get("build_start_date")
+    build_duration = req_dict.get("buildDurationYears") or req_dict.get("build_duration_years") or 5
+    climate_source = "open-meteo"
+    climate_disclaimer = None
+
+    if build_start_date:
+        try:
+            clean_date_str = str(build_start_date).replace("Z", "+00:00")
+            if "T" in clean_date_str:
+                start_dt = datetime.fromisoformat(clean_date_str)
+            else:
+                start_dt = datetime.fromisoformat(clean_date_str + "T00:00:00+00:00")
+            now_dt = datetime.now(timezone.utc)
+            days_out = (start_dt.date() - now_dt.date()).days
+            if days_out > 90:
+                future_proj = await fetch_future_climate_projection(
+                    lat=lat,
+                    lon=lon,
+                    build_start_date=clean_date_str[:10],
+                    build_duration_years=int(build_duration)
+                )
+                climate_dict["hourly_outdoor_temp"] = future_proj.get("hourlyOutdoorTemp")
+                climate_dict["hourly_solar_radiation"] = future_proj.get("hourlySolarRadiation")
+                climate_source = future_proj.get("source", "open-meteo-cmip6")
+                climate_disclaimer = (
+                    f"CMIP6 climate projection applied ({climate_source}). "
+                    f"Worst-case month: {future_proj.get('worst_month', '')} over {build_duration}-year timeline."
+                )
+        except Exception as e:
+            print(f"[Backend Climate Projection Warning]: {e}", flush=True)
+
     candidates = recommend(climate=climate_dict, requirements=req_dict, top_n=6)
     print(f"[DIAGNOSTIC STEP 4][Backend Response - /api/recommend]: Generated {len(candidates)} candidates", flush=True)
     return {
         "candidates": candidates,
+        "climateSource": climate_source,
+        "climateDisclaimer": climate_disclaimer,
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -308,15 +392,110 @@ def on_startup():
     seed_materials()
 
 
+MILITARY_SHELTER_TYPES = [
+    {
+        "id": "puf_barracks",
+        "name": "PUF Panel Barracks",
+        "description": "Polyurethane foam insulated panelized shelter for modular semi-permanent to permanent troop quartering.",
+        "typicalDeployment": ["road_bound"],
+        "typicalPermanence": ["semi_permanent", "permanent"],
+        "typicalPurposes": ["troop_habitation"],
+        "typicalMaterials": ["puf_sandwich_panel", "eps_insulation", "timber_insulated_roof"],
+        "erectionTime": "1-4 weeks",
+        "tempRating": "-35°C to +45°C",
+        "weightClass": "medium"
+    },
+    {
+        "id": "fems",
+        "name": "Fast Erectable Modular Shelter (FEMS)",
+        "description": "Ultra-lightweight interlocking composite panel system for rapid cold-weather forward deployment.",
+        "typicalDeployment": ["road_bound", "heliborne", "porter_carried"],
+        "typicalPermanence": ["semi_permanent", "permanent"],
+        "typicalPurposes": ["troop_habitation", "command_post_c4i", "medical_facility"],
+        "typicalMaterials": ["fems_composite_panel", "aerogel_insulation"],
+        "erectionTime": "4-12 hours",
+        "tempRating": "-40°C to +50°C",
+        "weightClass": "lightweight"
+    },
+    {
+        "id": "tactical_tent",
+        "name": "Tactical AirBeam / DRASH Tent",
+        "description": "Inflatable high-pressure arch or rapid-truss expeditionary fabric shelter for hasty deployment.",
+        "typicalDeployment": ["road_bound", "heliborne", "porter_carried"],
+        "typicalPermanence": ["hasty"],
+        "typicalPurposes": ["troop_habitation", "medical_facility", "command_post_c4i"],
+        "typicalMaterials": ["tactical_fabric_pvc", "aerogel_insulation"],
+        "erectionTime": "30-90 minutes",
+        "tempRating": "-30°C to +45°C",
+        "weightClass": "ultra_light"
+    },
+    {
+        "id": "container_shelter",
+        "name": "ISO Tactical Container Shelter",
+        "description": "Hard-walled, expandable 20ft ISO container shelter outfitted with integrated thermal and ballistic lining.",
+        "typicalDeployment": ["road_bound", "heliborne"],
+        "typicalPermanence": ["semi_permanent", "permanent"],
+        "typicalPurposes": ["command_post_c4i", "medical_facility", "maintenance_hangar", "logistics_storage"],
+        "typicalMaterials": ["galvanized_steel_sheet", "puf_sandwich_panel", "rockwool_insulation"],
+        "erectionTime": "1-2 hours",
+        "tempRating": "-40°C to +55°C",
+        "weightClass": "heavy"
+    },
+    {
+        "id": "hardened_bunker",
+        "name": "Artillery-Hardened Defense Bunker",
+        "description": "Subterranean or berm-protected reinforced concrete structure with 1.5m overhead earth cover for maximum ballistic and blast survival.",
+        "typicalDeployment": ["road_bound"],
+        "typicalPermanence": ["permanent"],
+        "typicalPurposes": ["command_post_c4i", "ammunition_storage", "troop_habitation"],
+        "typicalMaterials": ["concrete", "stone", "aerogel_insulation"],
+        "erectionTime": "4-12 weeks",
+        "tempRating": "-50°C to +40°C",
+        "weightClass": "extra_heavy"
+    },
+    {
+        "id": "lams_hangar",
+        "name": "Large Area Maintenance Shelter (LAMS)",
+        "description": "Tensioned arch-frame hangar for aircraft, drone maintenance, vehicle repair, and large equipment logistics.",
+        "typicalDeployment": ["road_bound"],
+        "typicalPermanence": ["semi_permanent", "permanent"],
+        "typicalPurposes": ["maintenance_hangar", "logistics_storage"],
+        "typicalMaterials": ["galvanized_steel_sheet", "tactical_fabric_pvc", "rockwool_insulation"],
+        "erectionTime": "1-2 weeks",
+        "tempRating": "-30°C to +45°C",
+        "weightClass": "medium_heavy"
+    },
+    {
+        "id": "observation_post",
+        "name": "Forward Observation Post (OP)",
+        "description": "Compact high-altitude observation redoubt designed for porter-pack or heli-lift transport to mountain ridges.",
+        "typicalDeployment": ["porter_carried", "heliborne", "road_bound"],
+        "typicalPermanence": ["semi_permanent", "permanent"],
+        "typicalPurposes": ["command_post_c4i", "troop_habitation"],
+        "typicalMaterials": ["fems_composite_panel", "aerogel_insulation"],
+        "erectionTime": "2-6 hours",
+        "tempRating": "-45°C to +35°C",
+        "weightClass": "lightweight"
+    }
+]
+
+
+@app.get("/api/shelter-types")
+def get_shelter_types(purpose: Optional[str] = None):
+    """Returns catalog of standard DRDO military shelter types, optionally filtered by purpose."""
+    if purpose:
+        return [st for st in MILITARY_SHELTER_TYPES if purpose in st.get("typicalPurposes", [])]
+    return MILITARY_SHELTER_TYPES
+
+
 @app.get("/api/materials")
-def get_materials(db: Session = Depends(get_db)):
-    """Returns the thermophysical materials catalog from the SQLite database."""
+def get_materials(deploymentMethod: Optional[str] = None, db: Session = Depends(get_db)):
+    """Returns the thermophysical materials catalog from the SQLite database, optionally filtered by deployment method."""
     materials = db.query(MaterialModel).all()
     if materials:
-        return [m.to_dict() for m in materials]
-    # Fallback to in-memory db if database is empty
-    if PHYSICS_ENGINE_AVAILABLE:
-        return [
+        results = [m.to_dict() for m in materials]
+    elif PHYSICS_ENGINE_AVAILABLE:
+        results = [
             {
                 "id": m.id,
                 "name": m.name,
@@ -331,22 +510,46 @@ def get_materials(db: Session = Depends(get_db)):
                 "pcmLatentHeat": m.pcm_latent_heat,
                 "cost": m.cost,
                 "weight": m.weight,
-                "carbonFactor": m.carbon_factor
+                "carbonFactor": m.carbon_factor,
+                "description": getattr(m, "description", ""),
+                "deploymentCompatibility": list(getattr(m, "deployment_compatibility", [])),
+                "shelterTypeCompatibility": list(getattr(m, "shelter_type_compatibility", [])),
             } for m in materials_db.list_all()
         ]
-    return []
+    else:
+        results = []
+
+    if deploymentMethod:
+        results = [
+            m for m in results
+            if not m.get("deploymentCompatibility") or deploymentMethod in m.get("deploymentCompatibility", [])
+        ]
+    return results
 
 
 @app.get("/api/climate/{lat}/{lon}")
-async def get_climate(lat: float, lon: float, name: Optional[str] = None):
+async def get_climate(
+    lat: float,
+    lon: float,
+    name: Optional[str] = None,
+    buildStartDate: Optional[str] = None,
+    buildDurationYears: int = 1
+):
     """
     Fetches real-time atmospheric and multi-decadal climatology data
     for coordinates via Open-Meteo & NASA POWER APIs per docs/api-contract.md.
+    If buildStartDate > 90 days in future, returns Open-Meteo CMIP6 projection.
     """
     if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
         raise HTTPException(status_code=422, detail="Latitude must be [-90, 90] and Longitude must be [-180, 180]")
     try:
-        profile = await get_climate_profile(lat, lon, name)
+        profile = await get_climate_profile(
+            lat=lat,
+            lon=lon,
+            location_name=name,
+            build_start_date=buildStartDate,
+            build_duration_years=buildDurationYears
+        )
         return profile
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve climate data: {str(e)}")

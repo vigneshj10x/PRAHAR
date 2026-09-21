@@ -20,10 +20,26 @@ from simulation_engine.engine import (
     ClimateInput,
     SimulationResult,
 )
+from simulation_engine.materials import materials_db
 from simulation_engine.geometry import calculate_geometry
 from simulation_engine.generate_dataset import CLIMATES
 from simulation_engine.optimization.optimizer import _resolve_climate, _generate_tradeoff_notes
 from .model import get_surrogate, SurrogateModel, CATEGORIES, CAT_DTYPES, FEATURE_COLS
+
+PURPOSE_COMFORT_BANDS: Dict[str, tuple] = {
+    "troop_habitation": (18.0, 24.0),
+    "command_post_c4i": (18.0, 22.0),
+    "ammunition_storage": (5.0, 25.0),
+    "medical_facility": (20.0, 24.0),
+    "maintenance_hangar": (10.0, 20.0),
+    "logistics_storage": (5.0, 15.0),
+}
+
+DEPLOYMENT_MAX_PANEL_WEIGHT: Dict[str, float] = {
+    "road_bound": 999.0,
+    "heliborne": 30.0,
+    "porter_carried": 8.0,
+}
 
 
 def _normalize_params(params: Union[Dict[str, Any], SimulationParams]) -> SimulationParams:
@@ -36,6 +52,7 @@ def _normalize_params(params: Union[Dict[str, Any], SimulationParams]) -> Simula
             orientation=float(params.get("orientation", 180.0)),
             wall_material=params.get("wallMaterial") or params.get("wall_material", "adobe"),
             roof_material=params.get("roofMaterial") or params.get("roof_material", "timber_insulated_roof"),
+            glazing_material=params.get("glazingMaterial") or params.get("glazing_material", "glazing_low_e"),
             insulation=float(params.get("insulation", 100.0)),
             opening=float(params.get("opening", 14.0)),
             thermal_mass=params.get("thermalMass") or params.get("thermal_mass", "high"),
@@ -44,6 +61,11 @@ def _normalize_params(params: Union[Dict[str, Any], SimulationParams]) -> Simula
             height=float(params.get("height", 2.5)),
             internal_gain_w=float(params.get("internalGainW") or params.get("internal_gain_w", 220.0)),
             ach=float(params.get("ach", 0.5)),
+            greenhouse_mode=bool(params.get("greenhouseMode") or params.get("greenhouse_mode", False)),
+            shelter_purpose=params.get("shelterPurpose") or params.get("shelter_purpose", "troop_habitation"),
+            shelter_permanence=params.get("shelterPermanence") or params.get("shelter_permanence", "semi_permanent"),
+            deployment_method=params.get("deploymentMethod") or params.get("deployment_method", "road_bound"),
+            hardening=params.get("hardening", "non_ballistic"),
         )
     return SimulationParams()
 
@@ -85,9 +107,21 @@ def recommend(
     norm_climate = _resolve_climate(climate)
     reqs = requirements or {}
 
+    print(f"\n[DIAGNOSTIC STEP 6][Surrogate Pareto Recommendation Ingress]:\n"
+          f"  Climate: lat={norm_climate.lat}, lon={norm_climate.lon}, alt={norm_climate.altitude}\n"
+          f"  Requirements: {reqs}\n"
+          f"  Candidate Pool Size: {candidate_pool_size}", flush=True)
+
     rng = np.random.default_rng(seed)
 
-    # 1. Parse constraints
+    # 1. Parse operational parameters & constraints
+    shelter_purpose = reqs.get("shelter_purpose") or reqs.get("shelterPurpose") or "troop_habitation"
+    shelter_permanence = reqs.get("shelter_permanence") or reqs.get("shelterPermanence") or "semi_permanent"
+    deployment_method = reqs.get("deployment_method") or reqs.get("deploymentMethod") or "road_bound"
+    hardening = reqs.get("hardening") or "non_ballistic"
+    available_materials = reqs.get("available_materials") or reqs.get("availableMaterials") or []
+    max_panel_weight = DEPLOYMENT_MAX_PANEL_WEIGHT.get(deployment_method, 999.0)
+
     max_cost = float(reqs.get("max_cost") or reqs.get("budget") or reqs.get("maxCost") or 1e9)
     max_weight = float(reqs.get("max_weight") or reqs.get("weightLimit") or reqs.get("weight_limit") or 1e9)
     min_comfort = float(reqs.get("min_comfort_percent") or reqs.get("minComfortPercent") or 0.0)
@@ -96,7 +130,48 @@ def recommend(
     if comfort_band and len(comfort_band) >= 2:
         comfort_max_temp = float(comfort_band[1])
     else:
-        comfort_max_temp = float(reqs.get("comfort_max_temp", reqs.get("max_temp", 24.0)))
+        p_min, p_max = PURPOSE_COMFORT_BANDS.get(shelter_purpose, (18.0, 24.0))
+        comfort_max_temp = float(reqs.get("comfort_max_temp", reqs.get("max_temp", p_max)))
+
+    # Filter candidate materials based on availability, deployment panel weight and compatibility
+    all_materials = materials_db.list_all()
+    candidate_walls = [
+        m.id for m in all_materials
+        if (m.category in ("wall", "envelope") or m.id in [
+            "tactical_fabric_pvc", "fems_composite_panel", "puf_sandwich_panel",
+            "eps_sandwich_panel", "concrete", "stone", "adobe",
+            "galvanized_steel_sheet", "composite", "insulated_panel"
+        ])
+        and m.weight <= max_panel_weight
+        and (not m.deployment_compatibility or deployment_method in m.deployment_compatibility)
+        and (not m.shelter_type_compatibility or shelter_purpose in m.shelter_type_compatibility)
+    ]
+    candidate_roofs = [
+        m.id for m in all_materials
+        if (m.category in ("roof", "envelope") or m.id in [
+            "timber_insulated_roof", "fems_composite_panel", "tactical_fabric_pvc",
+            "puf_sandwich_panel", "eps_sandwich_panel", "galvanized_steel_sheet",
+            "composite", "insulated_panel"
+        ])
+        and m.weight <= max_panel_weight
+        and (not m.deployment_compatibility or deployment_method in m.deployment_compatibility)
+        and (not m.shelter_type_compatibility or shelter_purpose in m.shelter_type_compatibility)
+    ]
+
+    if available_materials:
+        candidate_walls = [mid for mid in candidate_walls if mid in available_materials]
+        candidate_roofs = [mid for mid in candidate_roofs if mid in available_materials]
+
+    if not candidate_walls:
+        raise ValueError(
+            f"No compatible wall materials available for deployment={deployment_method}, "
+            f"purpose={shelter_purpose}, available={available_materials}"
+        )
+    if not candidate_roofs:
+        raise ValueError(
+            f"No compatible roof materials available for deployment={deployment_method}, "
+            f"purpose={shelter_purpose}, available={available_materials}"
+        )
 
     # Geometry bounds
     req_len = reqs.get("length")
@@ -105,8 +180,9 @@ def recommend(
 
     # 2. Generate large candidate parameter matrix (candidate_pool_size)
     shapes = rng.choice(CATEGORIES["shape"], size=candidate_pool_size)
-    walls = rng.choice(CATEGORIES["wall_material"], size=candidate_pool_size)
-    roofs = rng.choice(CATEGORIES["roof_material"], size=candidate_pool_size)
+    walls = rng.choice(candidate_walls, size=candidate_pool_size)
+    roofs = rng.choice(candidate_roofs, size=candidate_pool_size)
+    glazings = rng.choice(CATEGORIES.get("glazing_material", ["glazing_low_e", "polyethylene_sheet"]), size=candidate_pool_size)
     masses = rng.choice(CATEGORIES["thermal_mass"], size=candidate_pool_size)
 
     # Orientation: mix of south-biased (135°-225°) and uniform (0°-360°)
@@ -143,18 +219,31 @@ def recommend(
     t_mean = float(sum(temps) / len(temps))
     sol_peak = float(max(solar))
     wind = float(norm_climate.wind_speed)
+    humidity = float(norm_climate.humidity_pct) if hasattr(norm_climate, "humidity_pct") else 30.0
+    diurnal_amp = round(t_max - t_min, 2)
 
-    # 3. Compute geometry features vectorized
-    floor_areas = lengths * widths
-    # Approximate envelope areas based on shape
-    # Rectangular: 2*(L*W + L*H + W*H); Semidome: ~0.8 * box; A-Frame: roof slope
-    box_env = 2.0 * (lengths * widths + lengths * heights + widths * heights)
-    env_factors = np.where(shapes == "rectangular", 1.0, np.where(shapes == "semidome", 0.72, 0.85))
-    envelope_areas = box_env * env_factors
-    volumes = lengths * widths * heights * np.where(shapes == "rectangular", 1.0, np.where(shapes == "semidome", 0.78, 0.50))
-    av_ratios = envelope_areas / np.maximum(1.0, volumes)
+    # 3. Compute geometry features using exact calculate_geometry
+    floor_areas = np.empty(candidate_pool_size, dtype=np.float64)
+    envelope_areas = np.empty(candidate_pool_size, dtype=np.float64)
+    volumes = np.empty(candidate_pool_size, dtype=np.float64)
+    av_ratios = np.empty(candidate_pool_size, dtype=np.float64)
 
-    is_pcms = np.where(walls == "pcm_enhanced_panel", 1, 0)
+    for i in range(candidate_pool_size):
+        geom = calculate_geometry(
+            shape=shapes[i],
+            length=lengths[i],
+            width=widths[i],
+            height=heights[i],
+            orientation_deg=orientations[i]
+        )
+        floor_areas[i] = geom.floor_area
+        envelope_areas[i] = geom.envelope_area
+        volumes[i] = geom.volume
+        av_ratios[i] = geom.av_ratio
+
+    is_pcms = np.where(np.char.find(walls.astype(str), "pcm") >= 0, 1, 0)
+    is_greenhouses = np.where(glazings == "polyethylene_sheet", 1, 0)
+    is_ground_coupled = np.where(np.isin(shapes, ["bunker_bermed", "igloo_catenary"]), 1, 0)
 
     # Build DataFrame for surrogate batch inference
     df_pool = pd.DataFrame({
@@ -166,14 +255,19 @@ def recommend(
         "ambient_mean_temp": t_mean,
         "solar_peak_wm2": sol_peak,
         "wind_speed_ms": wind,
+        "humidity_pct": humidity,
+        "diurnal_amplitude_c": diurnal_amp,
         "shape": pd.Categorical(shapes, categories=CATEGORIES["shape"]),
         "orientation_deg": orientations,
         "wall_material": pd.Categorical(walls, categories=CATEGORIES["wall_material"]),
         "roof_material": pd.Categorical(roofs, categories=CATEGORIES["roof_material"]),
+        "glazing_material": pd.Categorical(glazings, categories=CATEGORIES["glazing_material"]),
         "insulation_mm": insulations,
         "opening_ratio_pct": openings,
         "thermal_mass": pd.Categorical(masses, categories=CATEGORIES["thermal_mass"]),
         "is_pcm": is_pcms,
+        "is_greenhouse": is_greenhouses,
+        "is_ground_coupled": is_ground_coupled,
         "length_m": lengths,
         "width_m": widths,
         "height_m": heights,
@@ -212,21 +306,32 @@ def recommend(
     f_solar = -useful_solars
 
     # Constraints filtering
+    panel_weights = np.array([
+        max(
+            (materials_db.get(walls[i]).weight if materials_db.get(walls[i]) else 0.0),
+            (materials_db.get(roofs[i]).weight if materials_db.get(roofs[i]) else 0.0)
+        )
+        for i in range(candidate_pool_size)
+    ])
+    c_panel_weight = panel_weights <= max_panel_weight * 1.01
+
     c_cost = costs <= max_cost * 1.05
     c_weight = weights <= max_weight * 1.05
     c_overheat = max_temps <= (comfort_max_temp + 1.5)
     c_comfort = comfort_pcts >= (min_comfort - 5.0)
 
-    feasible_mask = c_cost & c_weight & c_overheat & c_comfort
+    feasible_mask = c_cost & c_weight & c_overheat & c_comfort & c_panel_weight
     feasible_indices = np.where(feasible_mask)[0]
 
     if len(feasible_indices) < 10:
-        # Relax constraints to avoid empty results
-        feasible_mask = c_cost & c_weight
+        # Relax constraints to avoid empty results while preserving panel weight
+        feasible_mask = c_cost & c_weight & c_panel_weight
         feasible_indices = np.where(feasible_mask)[0]
 
     if len(feasible_indices) == 0:
-        feasible_indices = np.arange(candidate_pool_size)
+        feasible_indices = np.where(c_panel_weight)[0]
+        if len(feasible_indices) == 0:
+            feasible_indices = np.arange(candidate_pool_size)
 
     # 6. Non-dominated sorting over feasible pool
     F_sub = np.column_stack([
@@ -302,6 +407,10 @@ def recommend(
             length=round(float(lengths[global_idx]), 2),
             width=round(float(widths[global_idx]), 2),
             height=round(float(heights[global_idx]), 2),
+            shelter_purpose=shelter_purpose,
+            shelter_permanence=shelter_permanence,
+            deployment_method=deployment_method,
+            hardening=hardening,
         )
         phys = simulate(cand_params, norm_climate)
 
@@ -329,12 +438,18 @@ def recommend(
                 "orientation": round(float(orientations[global_idx]), 1),
                 "wallMaterial": walls[global_idx],
                 "roofMaterial": roofs[global_idx],
+                "glazingMaterial": glazings[global_idx],
+                "greenhouseMode": bool(is_greenhouses[global_idx]),
                 "insulation": round(float(insulations[global_idx]), 1),
                 "opening": round(float(openings[global_idx]), 1),
                 "thermalMass": masses[global_idx],
                 "length": round(float(lengths[global_idx]), 2),
                 "width": round(float(widths[global_idx]), 2),
                 "height": round(float(heights[global_idx]), 2),
+                "shelterPurpose": shelter_purpose,
+                "shelterPermanence": shelter_permanence,
+                "deploymentMethod": deployment_method,
+                "hardening": hardening,
             },
             "results": {
                 "uValue": phys.u_value,
@@ -352,13 +467,22 @@ def recommend(
                 "weight": phys.weight,
                 "cost": phys.cost,
                 "carbonFootprint": phys.carbon_footprint,
-                "estimated": False,
+                "maxPanelWeightKgM2": phys.max_panel_weight_kg_m2,
+                "comfortMinC": phys.comfort_min_c,
+                "comfortMaxC": phys.comfort_max_c,
+                "estimated": True,
             },
             "tradeoffNotes": "",
             "paretoRank": 1,
         }
         cand["tradeoffNotes"] = _generate_tradeoff_notes(cand, role)
         candidates.append(cand)
+
+    print(f"[DIAGNOSTIC STEP 6][Surrogate Generated {len(candidates)} Diverse Pareto Candidates]:", flush=True)
+    for c in candidates:
+        p = c['params']
+        r = c['results']
+        print(f"  - [{c['id']}] Shape={p['shape']}, Wall={p['wallMaterial']}, Roof={p['roofMaterial']}, Ins={p['insulation']}mm, Op={p['opening']}%, Mass={p['thermalMass']} | MeanTemp={r['meanIndoorTemp']}°C, HeatLoss={r['heatLoss']}W/m2, Cost=₹{r['cost']}, Wt={r['weight']}kg", flush=True)
 
     return candidates
 

@@ -224,6 +224,8 @@ def seed_materials():
                     with open(jp, "r", encoding="utf-8") as f:
                         raw_data = json.load(f)
                     for item in raw_data:
+                        deploy = item.get("deploymentCompatibility") or item.get("deployment_compatibility") or []
+                        shelter_types = item.get("shelterTypeCompatibility") or item.get("shelter_type_compatibility") or []
                         entries_to_add.append({
                             "id": item["id"],
                             "name": item["name"],
@@ -239,7 +241,9 @@ def seed_materials():
                             "cost": float(item["cost"]),
                             "weight": float(item["weight"]),
                             "carbon_factor": float(item["carbonFactor"]) if item.get("carbonFactor") is not None else None,
-                            "description": item.get("description", f"{item['name']} for thermal envelope.")
+                            "description": item.get("description", f"{item['name']} for military thermal envelope."),
+                            "deployment_compatibility": json.dumps(deploy),
+                            "shelter_type_compatibility": json.dumps(shelter_types),
                         })
                     loaded_from_json = True
                     print(f"[Seed] Loaded {len(entries_to_add)} materials from {jp.name}")
@@ -250,6 +254,13 @@ def seed_materials():
         if not loaded_from_json:
             entries_to_add = FALLBACK_MATERIALS
             print(f"[Seed] Seeding {len(entries_to_add)} default bioclimatic materials.")
+
+        # Prune non-military / obsolete materials
+        active_ids = {e["id"] for e in entries_to_add}
+        for old_mat in db.query(MaterialModel).all():
+            if old_mat.id not in active_ids:
+                print(f"[Seed] Removing non-military material '{old_mat.id}' (unsuited for DRDO defence shelters)")
+                db.delete(old_mat)
 
         # Upsert into database
         for mat_data in entries_to_add:

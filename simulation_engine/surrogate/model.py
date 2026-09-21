@@ -141,6 +141,23 @@ class SurrogateModel:
             df_copy["is_ground_coupled"] = df_copy["shape"].apply(lambda s: 1 if s in ("bunker_bermed", "igloo_catenary") else 0)
 
         clean_df = df_copy[FEATURE_COLS].copy()
+        wall_map = {
+            "puf_sandwich_panel": "insulated_panel",
+            "eps_sandwich_panel": "insulated_panel",
+            "fems_composite_panel": "composite",
+            "galvanized_steel_sheet": "composite",
+            "tactical_fabric_pvc": "composite",
+        }
+        roof_map = {
+            "puf_sandwich_panel": "insulated_panel",
+            "eps_sandwich_panel": "insulated_panel",
+            "fems_composite_panel": "composite",
+            "galvanized_steel_sheet": "composite",
+            "tactical_fabric_pvc": "composite",
+        }
+        clean_df["wall_material"] = clean_df["wall_material"].replace(wall_map)
+        clean_df["roof_material"] = clean_df["roof_material"].replace(roof_map)
+
         for col, cat_type in CAT_DTYPES.items():
             clean_df[col] = clean_df[col].astype(cat_type)
         return clean_df

@@ -47,3 +47,16 @@ def init_db():
     """Initializes database tables."""
     import backend.models  # Ensure models are registered
     Base.metadata.create_all(bind=engine)
+    # Lightweight SQLite column migration for materials table
+    try:
+        with engine.connect() as conn:
+            result = conn.exec_driver_sql("PRAGMA table_info(materials)")
+            existing_cols = {row[1] for row in result.fetchall()}
+            if existing_cols:
+                if "deployment_compatibility" not in existing_cols:
+                    conn.exec_driver_sql("ALTER TABLE materials ADD COLUMN deployment_compatibility TEXT DEFAULT '[]'")
+                if "shelter_type_compatibility" not in existing_cols:
+                    conn.exec_driver_sql("ALTER TABLE materials ADD COLUMN shelter_type_compatibility TEXT DEFAULT '[]'")
+                conn.commit()
+    except Exception as e:
+        print(f"[init_db] Note on schema check: {e}")

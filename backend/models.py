@@ -40,9 +40,26 @@ class MaterialModel(Base):
     weight: Mapped[float] = mapped_column(Float, nullable=False)                     # kg / m²
     carbon_factor: Mapped[Optional[float]] = mapped_column(Float, nullable=True)     # kgCO2e / kg
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    deployment_compatibility: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    shelter_type_compatibility: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
 
     def to_dict(self):
         """Converts model to dictionary matching API contract schema."""
+        import json
+        deploy = []
+        if self.deployment_compatibility:
+            try:
+                deploy = json.loads(self.deployment_compatibility)
+            except Exception:
+                deploy = [d.strip() for d in self.deployment_compatibility.split(",") if d.strip()]
+
+        shelter_types = []
+        if self.shelter_type_compatibility:
+            try:
+                shelter_types = json.loads(self.shelter_type_compatibility)
+            except Exception:
+                shelter_types = [s.strip() for s in self.shelter_type_compatibility.split(",") if s.strip()]
+
         return {
             "id": self.id,
             "name": self.name,
@@ -58,7 +75,9 @@ class MaterialModel(Base):
             "cost": self.cost,
             "weight": self.weight,
             "carbonFactor": self.carbon_factor,
-            "description": self.description
+            "description": self.description,
+            "deploymentCompatibility": deploy,
+            "shelterTypeCompatibility": shelter_types,
         }
 
 

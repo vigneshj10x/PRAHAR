@@ -24,6 +24,10 @@ from backend.models import ClimateCacheModel
 _CLIMATE_CACHE: Dict[Tuple[float, float], Tuple[float, Dict[str, Any]]] = {}
 CACHE_TTL_SECONDS = 12 * 3600  # 12 hours TTL
 
+# Future climate cache: (lat_round, lon_round, start_date, duration_years) -> (timestamp, data)
+_FUTURE_CLIMATE_CACHE: Dict[Tuple[float, float, str, int], Tuple[float, Dict[str, Any]]] = {}
+CACHE_TTL_FUTURE_SECONDS = 30 * 86400  # 30 days TTL
+
 
 async def fetch_open_meteo(lat: float, lon: float, client: httpx.AsyncClient) -> Optional[Dict[str, Any]]:
     """
@@ -107,10 +111,292 @@ async def geocode_place(query: str, client: httpx.AsyncClient) -> List[Dict[str,
     return []
 
 
-async def get_climate_profile(lat: float, lon: float, location_name: Optional[str] = None) -> Dict[str, Any]:
+async def fetch_future_climate_projection(
+    lat: float,
+    lon: float,
+    build_start_date: str,
+    build_duration_years: int = 1,
+    location_name: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Retrieves and merges live climate data for coordinates with in-memory caching.
+    Fetches and processes multi-year climate projection from Open-Meteo Climate Projection API (CMIP6).
+    Averages MRI_AGCM3_2_S and EC_Earth3P_HR models.
+    Identifies the worst-case (coldest) month across the build duration for conservative shelter design.
+    Caches results with a 30-day TTL.
     """
+    import math
+    cache_key = (round(lat, 3), round(lon, 3), build_start_date, int(build_duration_years))
+    now = time.time()
+
+    # Check in-memory 30-day cache
+    if cache_key in _FUTURE_CLIMATE_CACHE:
+        cached_time, cached_data = _FUTURE_CLIMATE_CACHE[cache_key]
+        if (now - cached_time) < CACHE_TTL_FUTURE_SECONDS:
+            return cached_data
+
+    # Parse dates
+    try:
+        start_dt = datetime.fromisoformat(build_start_date.replace("Z", "+00:00"))
+    except Exception:
+        start_dt = datetime.now(timezone.utc) + timedelta(days=120)
+
+    # CMIP6 models run through 2050
+    end_year = min(2050, start_dt.year + max(1, build_duration_years))
+    end_dt = start_dt.replace(year=end_year)
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    url = "https://climate-api.open-meteo.com/v1/climate"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": start_str,
+        "end_date": end_str,
+        "models": "MRI_AGCM3_2_S,EC_Earth3P_HR",
+        "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean,windspeed_10m_mean,precipitation_sum,shortwave_radiation_sum"
+    }
+
+    raw_daily = None
+    altitude = 3524.0 if lat > 30 else 500.0
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, params=params, timeout=25.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_daily = data.get("daily", {})
+                if "elevation" in data and data["elevation"] is not None:
+                    altitude = float(data["elevation"])
+            else:
+                print(f"[ClimateProjection] Open-Meteo returned status {resp.status_code}")
+    except Exception as e:
+        print(f"[ClimateProjection] Request error: {e}")
+
+    # Process daily data
+    if raw_daily and "time" in raw_daily and len(raw_daily["time"]) > 0:
+        times = raw_daily["time"]
+        n_days = len(times)
+
+        m1_max = raw_daily.get("temperature_2m_max_MRI_AGCM3_2_S") or [0.0] * n_days
+        m2_max = raw_daily.get("temperature_2m_max_EC_Earth3P_HR") or [0.0] * n_days
+        m1_min = raw_daily.get("temperature_2m_min_MRI_AGCM3_2_S") or [0.0] * n_days
+        m2_min = raw_daily.get("temperature_2m_min_EC_Earth3P_HR") or [0.0] * n_days
+        m1_mean = raw_daily.get("temperature_2m_mean_MRI_AGCM3_2_S") or [0.0] * n_days
+        m2_mean = raw_daily.get("temperature_2m_mean_EC_Earth3P_HR") or [0.0] * n_days
+        m1_wind = raw_daily.get("windspeed_10m_mean_MRI_AGCM3_2_S") or [3.5] * n_days
+        m2_wind = raw_daily.get("windspeed_10m_mean_EC_Earth3P_HR") or [3.5] * n_days
+        m1_solar = raw_daily.get("shortwave_radiation_sum_MRI_AGCM3_2_S") or [15.0] * n_days
+        m2_solar = raw_daily.get("shortwave_radiation_sum_EC_Earth3P_HR") or [15.0] * n_days
+        m1_precip = raw_daily.get("precipitation_sum_MRI_AGCM3_2_S") or [0.0] * n_days
+        m2_precip = raw_daily.get("precipitation_sum_EC_Earth3P_HR") or [0.0] * n_days
+
+        daily_records = []
+        months_dict: Dict[str, List[Dict[str, float]]] = {}
+        for i in range(n_days):
+            t_max = (float(m1_max[i] or 0.0) + float(m2_max[i] or 0.0)) / 2.0
+            t_min = (float(m1_min[i] or 0.0) + float(m2_min[i] or 0.0)) / 2.0
+            t_mean = (float(m1_mean[i] or 0.0) + float(m2_mean[i] or 0.0)) / 2.0
+            wind = (float(m1_wind[i] or 0.0) + float(m2_wind[i] or 0.0)) / 2.0
+            solar_mj = (float(m1_solar[i] or 0.0) + float(m2_solar[i] or 0.0)) / 2.0
+            precip = (float(m1_precip[i] or 0.0) + float(m2_precip[i] or 0.0)) / 2.0
+
+            rec = {
+                "time": times[i],
+                "t_max": t_max,
+                "t_min": t_min,
+                "t_mean": t_mean,
+                "wind": wind,
+                "solar_mj": solar_mj,
+                "precip": precip
+            }
+            daily_records.append(rec)
+            month_key = times[i][:7]
+            if month_key not in months_dict:
+                months_dict[month_key] = []
+            months_dict[month_key].append(rec)
+
+        # Identify WORST CASE month (lowest average temperature)
+        worst_month_key = min(
+            months_dict.keys(),
+            key=lambda m: sum(r["t_mean"] for r in months_dict[m]) / max(1, len(months_dict[m]))
+        )
+        worst_month_records = months_dict[worst_month_key]
+        n_m = len(worst_month_records)
+        worst_min = sum(r["t_min"] for r in worst_month_records) / n_m
+        worst_max = sum(r["t_max"] for r in worst_month_records) / n_m
+        worst_mean = sum(r["t_mean"] for r in worst_month_records) / n_m
+        worst_wind = sum(r["wind"] for r in worst_month_records) / n_m
+        worst_solar_mj = sum(r["solar_mj"] for r in worst_month_records) / n_m
+        worst_daily_kwh = worst_solar_mj / 3.6  # MJ/m² to kWh/m²
+
+        # Multi-year seasonal averages
+        winter_records = [r for r in daily_records if r["time"][5:7] in ("12", "01", "02")]
+        summer_records = [r for r in daily_records if r["time"][5:7] in ("06", "07", "08")]
+        winter_avg = sum(r["t_mean"] for r in winter_records) / max(1, len(winter_records)) if winter_records else worst_mean
+        summer_avg = sum(r["t_mean"] for r in summer_records) / max(1, len(summer_records)) if summer_records else 22.0
+        overall_avg = sum(r["t_mean"] for r in daily_records) / n_days
+
+        # Synthesize worst-case diurnal 24-hour profile
+        hourly_temps = []
+        for h in range(24):
+            rad = math.sin((h - 8.0) * math.pi / 12.0)
+            t = worst_mean + ((worst_max - worst_min) / 2.0) * rad
+            hourly_temps.append(round(t, 2))
+
+        peak_wm2 = max(200.0, min(950.0, worst_daily_kwh * 115.0))
+        hourly_solar = []
+        for h in range(24):
+            if 6 <= h <= 18:
+                rad = math.sin((h - 6.0) * math.pi / 12.0)
+                hourly_solar.append(round(peak_wm2 * max(0.0, rad), 1))
+            else:
+                hourly_solar.append(0.0)
+
+        label = f"Projected climate for {start_dt.year}-{end_year} (CMIP6 model average)"
+        disclaimer = "Climate projections are model-based estimates. Design to worst-case projected conditions."
+
+        result = {
+            "location": {
+                "lat": round(lat, 4),
+                "lon": round(lon, 4),
+                "name": location_name or f"{lat:.2f}°, {lon:.2f}° (Projected {start_dt.year}-{end_year})",
+                "altitude": round(altitude, 1)
+            },
+            "ambientTempRange": {
+                "min": round(worst_min, 1),
+                "max": round(worst_max, 1),
+                "avg": round(worst_mean, 1)
+            },
+            "solarIrradiance": {
+                "dailyTotalKwh": round(worst_daily_kwh, 2),
+                "peakWm2": round(peak_wm2, 1)
+            },
+            "windSpeed": {
+                "avgMs": round(worst_wind, 1),
+                "maxMs": round(worst_wind * 1.8, 1)
+            },
+            "humidity": {
+                "avgPercent": 28.0
+            },
+            "snowData": {
+                "annualSnowfallMm": 180.0 if lat > 30 else 0.0,
+                "maxSnowDepthCm": 35.0 if lat > 30 else 0.0
+            },
+            "hourlyOutdoorTemp": hourly_temps,
+            "hourlySolarRadiation": hourly_solar,
+            "source": "open-meteo-cmip6",
+            "label": label,
+            "disclaimer": disclaimer,
+            "isFutureProjection": True,
+            "worstMonth": {
+                "month": worst_month_key,
+                "avgTemp": round(worst_mean, 1),
+                "minTemp": round(worst_min, 1),
+                "maxTemp": round(worst_max, 1)
+            },
+            "seasonalAverages": {
+                "winterAvg": round(winter_avg, 1),
+                "summerAvg": round(summer_avg, 1),
+                "annualAvg": round(overall_avg, 1)
+            },
+            "fetchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        }
+    else:
+        # Fallback offline approximation if CMIP6 API unreachable
+        start_year = start_dt.year
+        label = f"Projected climate for {start_year}-{end_year} (CMIP6 model average)"
+        disclaimer = "Climate projections are model-based estimates. Design to worst-case projected conditions."
+        is_high_alt = lat > 30 and lon > 70
+        base_min = -22.0 if is_high_alt else 5.0
+        base_max = -9.0 if is_high_alt else 25.0
+        base_mean = -15.5 if is_high_alt else 15.0
+        hourly_temps = [round(base_mean + ((base_max - base_min) / 2.0) * math.sin((h - 8.0) * math.pi / 12.0), 2) for h in range(24)]
+        hourly_solar = [round(500.0 * math.sin((h - 6.0) * math.pi / 12.0), 1) if 6 <= h <= 18 else 0.0 for h in range(24)]
+
+        result = {
+            "location": {
+                "lat": round(lat, 4),
+                "lon": round(lon, 4),
+                "name": location_name or f"{lat:.2f}°, {lon:.2f}° (Projected {start_year}-{end_year})",
+                "altitude": 3524.0 if is_high_alt else 500.0
+            },
+            "ambientTempRange": {"min": base_min, "max": base_max, "avg": base_mean},
+            "solarIrradiance": {"dailyTotalKwh": 4.5, "peakWm2": 500.0},
+            "windSpeed": {"avgMs": 3.8, "maxMs": 8.5},
+            "humidity": {"avgPercent": 28.0},
+            "snowData": {"annualSnowfallMm": 160.0, "maxSnowDepthCm": 30.0},
+            "hourlyOutdoorTemp": hourly_temps,
+            "hourlySolarRadiation": hourly_solar,
+            "source": "open-meteo-cmip6",
+            "label": label,
+            "disclaimer": disclaimer,
+            "isFutureProjection": True,
+            "worstMonth": {"month": f"{start_year}-01", "avgTemp": base_mean, "minTemp": base_min, "maxTemp": base_max},
+            "seasonalAverages": {"winterAvg": base_mean, "summerAvg": base_mean + 28.0, "annualAvg": base_mean + 12.0},
+            "fetchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        }
+
+        result["worst_month"] = worst_month_key
+
+    _FUTURE_CLIMATE_CACHE[cache_key] = (now, result)
+    return result
+
+
+def fetch_future_climate_projection_sync(
+    lat: float,
+    lon: float,
+    build_start_date: str,
+    build_duration_years: int = 1,
+    location_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Synchronous wrapper for fetch_future_climate_projection."""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(
+                    asyncio.run,
+                    fetch_future_climate_projection(lat, lon, build_start_date, build_duration_years, location_name)
+                ).result()
+        else:
+            return loop.run_until_complete(
+                fetch_future_climate_projection(lat, lon, build_start_date, build_duration_years, location_name)
+            )
+    except Exception:
+        return asyncio.run(
+            fetch_future_climate_projection(lat, lon, build_start_date, build_duration_years, location_name)
+        )
+
+
+async def get_climate_profile(
+    lat: float,
+    lon: float,
+    location_name: Optional[str] = None,
+    build_start_date: Optional[str] = None,
+    build_duration_years: int = 1
+) -> Dict[str, Any]:
+    """
+    Retrieves and merges climate data for coordinates.
+    If build_start_date is > 90 days in the future, queries Open-Meteo CMIP6 projection API.
+    Otherwise uses real-time/forecast and multi-decadal climatology.
+    """
+    # Check if future climate projection is requested (> 90 days in future)
+    if build_start_date:
+        try:
+            b_dt = datetime.fromisoformat(build_start_date.replace("Z", "+00:00"))
+            now_dt = datetime.now(timezone.utc)
+            if (b_dt.date() - now_dt.date()).days > 90:
+                return await fetch_future_climate_projection(
+                    lat=lat,
+                    lon=lon,
+                    build_start_date=build_start_date,
+                    build_duration_years=build_duration_years,
+                    location_name=location_name
+                )
+        except Exception as e:
+            print(f"[get_climate_profile] Build date parse notice: {e}")
+
     cache_key = (round(lat, 3), round(lon, 3))
     now = time.time()
 

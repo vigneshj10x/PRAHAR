@@ -50,6 +50,42 @@ export type ThermalMassType = 'low' | 'medium' | 'high'
 
 export type MaterialCategory = 'wall' | 'roof' | 'insulation' | 'glazing' | 'pcm'
 
+export type ShelterPurpose =
+  | 'troop_habitation'
+  | 'command_post_c4i'
+  | 'ammunition_storage'
+  | 'medical_facility'
+  | 'maintenance_hangar'
+  | 'logistics_storage'
+
+export type ShelterPermanence =
+  | 'hasty'
+  | 'semi_permanent'
+  | 'permanent'
+
+export type DeploymentMethod =
+  | 'road_bound'
+  | 'heliborne'
+  | 'porter_carried'
+
+export type HardeningLevel =
+  | 'non_ballistic'
+  | 'small_arms'
+  | 'artillery_hardened'
+
+export interface ShelterTypeDefinition {
+  id:                 string
+  name:               string
+  description:        string
+  typicalDeployment:  DeploymentMethod[]
+  typicalPermanence:  ShelterPermanence[]
+  typicalPurposes:    ShelterPurpose[]
+  typicalMaterials:   string[]
+  erectionTime:       string
+  tempRating:         string
+  weightClass:        string
+}
+
 export interface Material {
   id:                  string
   name:                string
@@ -67,6 +103,8 @@ export interface Material {
   carbonFactor:        number | null        // kgCO2e / kg
   description?:        string
   rValuePerM?:         number
+  deploymentCompatibility?: string[]
+  shelterTypeCompatibility?: string[]
 }
 
 // ─── Design & Simulation Parameters ───────────────────────────────────────────
@@ -90,6 +128,14 @@ export interface DesignParams {
   weightLimit?:       number                  // kg
   occupants?:         number                  // persons
   minComfortPercent?: number                  // %
+  shelterPurpose?:      ShelterPurpose
+  shelterType?:         string
+  shelterPermanence?:   ShelterPermanence
+  deploymentMethod?:    DeploymentMethod
+  hardening?:           HardeningLevel
+  buildStartDate?:      string | null
+  buildDurationYears?:  number
+  availableMaterials?:  string[]
 }
 
 /** Standard request payload for POST /api/simulate and POST /api/verify */
@@ -107,6 +153,14 @@ export interface SimulationRequest {
   width:        number
   height:       number
   greenhouseMode?: boolean
+  shelterPurpose?:      ShelterPurpose
+  shelterType?:         string
+  shelterPermanence?:   ShelterPermanence
+  deploymentMethod?:    DeploymentMethod
+  hardening?:           HardeningLevel
+  buildStartDate?:      string | null
+  buildDurationYears?:  number
+  availableMaterials?:  string[]
 }
 
 // ─── Simulation Results & Thermal Telemetry ───────────────────────────────────
@@ -162,6 +216,14 @@ export interface RecommendRequirements {
   budget?:            number                // budget ceiling in ₹
   weightLimit?:       number                // transportation weight limit in kg
   minComfortPercent?: number                // minimum acceptable comfort %
+  shelterPurpose?:      ShelterPurpose
+  shelterType?:         string
+  shelterPermanence?:   ShelterPermanence
+  deploymentMethod?:    DeploymentMethod
+  hardening?:           HardeningLevel
+  buildStartDate?:      string | null
+  buildDurationYears?:  number
+  availableMaterials?:  string[]
 }
 
 export interface RecommendRequest {

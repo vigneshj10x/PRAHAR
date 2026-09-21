@@ -20,10 +20,26 @@ from simulation_engine.engine import (
     ClimateInput,
     SimulationResult,
 )
+from simulation_engine.materials import materials_db
 from simulation_engine.geometry import calculate_geometry
 from simulation_engine.generate_dataset import CLIMATES
 from simulation_engine.optimization.optimizer import _resolve_climate, _generate_tradeoff_notes
 from .model import get_surrogate, SurrogateModel, CATEGORIES, CAT_DTYPES, FEATURE_COLS
+
+PURPOSE_COMFORT_BANDS: Dict[str, tuple] = {
+    "troop_habitation": (18.0, 24.0),
+    "command_post_c4i": (18.0, 22.0),
+    "ammunition_storage": (5.0, 25.0),
+    "medical_facility": (20.0, 24.0),
+    "maintenance_hangar": (10.0, 20.0),
+    "logistics_storage": (5.0, 15.0),
+}
+
+DEPLOYMENT_MAX_PANEL_WEIGHT: Dict[str, float] = {
+    "road_bound": 999.0,
+    "heliborne": 30.0,
+    "porter_carried": 8.0,
+}
 
 
 def _normalize_params(params: Union[Dict[str, Any], SimulationParams]) -> SimulationParams:
@@ -46,6 +62,10 @@ def _normalize_params(params: Union[Dict[str, Any], SimulationParams]) -> Simula
             internal_gain_w=float(params.get("internalGainW") or params.get("internal_gain_w", 220.0)),
             ach=float(params.get("ach", 0.5)),
             greenhouse_mode=bool(params.get("greenhouseMode") or params.get("greenhouse_mode", False)),
+            shelter_purpose=params.get("shelterPurpose") or params.get("shelter_purpose", "troop_habitation"),
+            shelter_permanence=params.get("shelterPermanence") or params.get("shelter_permanence", "semi_permanent"),
+            deployment_method=params.get("deploymentMethod") or params.get("deployment_method", "road_bound"),
+            hardening=params.get("hardening", "non_ballistic"),
         )
     return SimulationParams()
 
@@ -94,7 +114,14 @@ def recommend(
 
     rng = np.random.default_rng(seed)
 
-    # 1. Parse constraints
+    # 1. Parse operational parameters & constraints
+    shelter_purpose = reqs.get("shelter_purpose") or reqs.get("shelterPurpose") or "troop_habitation"
+    shelter_permanence = reqs.get("shelter_permanence") or reqs.get("shelterPermanence") or "semi_permanent"
+    deployment_method = reqs.get("deployment_method") or reqs.get("deploymentMethod") or "road_bound"
+    hardening = reqs.get("hardening") or "non_ballistic"
+    available_materials = reqs.get("available_materials") or reqs.get("availableMaterials") or []
+    max_panel_weight = DEPLOYMENT_MAX_PANEL_WEIGHT.get(deployment_method, 999.0)
+
     max_cost = float(reqs.get("max_cost") or reqs.get("budget") or reqs.get("maxCost") or 1e9)
     max_weight = float(reqs.get("max_weight") or reqs.get("weightLimit") or reqs.get("weight_limit") or 1e9)
     min_comfort = float(reqs.get("min_comfort_percent") or reqs.get("minComfortPercent") or 0.0)
@@ -103,7 +130,48 @@ def recommend(
     if comfort_band and len(comfort_band) >= 2:
         comfort_max_temp = float(comfort_band[1])
     else:
-        comfort_max_temp = float(reqs.get("comfort_max_temp", reqs.get("max_temp", 24.0)))
+        p_min, p_max = PURPOSE_COMFORT_BANDS.get(shelter_purpose, (18.0, 24.0))
+        comfort_max_temp = float(reqs.get("comfort_max_temp", reqs.get("max_temp", p_max)))
+
+    # Filter candidate materials based on availability, deployment panel weight and compatibility
+    all_materials = materials_db.list_all()
+    candidate_walls = [
+        m.id for m in all_materials
+        if (m.category in ("wall", "envelope") or m.id in [
+            "tactical_fabric_pvc", "fems_composite_panel", "puf_sandwich_panel",
+            "eps_sandwich_panel", "concrete", "stone", "adobe",
+            "galvanized_steel_sheet", "composite", "insulated_panel"
+        ])
+        and m.weight <= max_panel_weight
+        and (not m.deployment_compatibility or deployment_method in m.deployment_compatibility)
+        and (not m.shelter_type_compatibility or shelter_purpose in m.shelter_type_compatibility)
+    ]
+    candidate_roofs = [
+        m.id for m in all_materials
+        if (m.category in ("roof", "envelope") or m.id in [
+            "timber_insulated_roof", "fems_composite_panel", "tactical_fabric_pvc",
+            "puf_sandwich_panel", "eps_sandwich_panel", "galvanized_steel_sheet",
+            "composite", "insulated_panel"
+        ])
+        and m.weight <= max_panel_weight
+        and (not m.deployment_compatibility or deployment_method in m.deployment_compatibility)
+        and (not m.shelter_type_compatibility or shelter_purpose in m.shelter_type_compatibility)
+    ]
+
+    if available_materials:
+        candidate_walls = [mid for mid in candidate_walls if mid in available_materials]
+        candidate_roofs = [mid for mid in candidate_roofs if mid in available_materials]
+
+    if not candidate_walls:
+        raise ValueError(
+            f"No compatible wall materials available for deployment={deployment_method}, "
+            f"purpose={shelter_purpose}, available={available_materials}"
+        )
+    if not candidate_roofs:
+        raise ValueError(
+            f"No compatible roof materials available for deployment={deployment_method}, "
+            f"purpose={shelter_purpose}, available={available_materials}"
+        )
 
     # Geometry bounds
     req_len = reqs.get("length")
@@ -112,8 +180,8 @@ def recommend(
 
     # 2. Generate large candidate parameter matrix (candidate_pool_size)
     shapes = rng.choice(CATEGORIES["shape"], size=candidate_pool_size)
-    walls = rng.choice(CATEGORIES["wall_material"], size=candidate_pool_size)
-    roofs = rng.choice(CATEGORIES["roof_material"], size=candidate_pool_size)
+    walls = rng.choice(candidate_walls, size=candidate_pool_size)
+    roofs = rng.choice(candidate_roofs, size=candidate_pool_size)
     glazings = rng.choice(CATEGORIES.get("glazing_material", ["glazing_low_e", "polyethylene_sheet"]), size=candidate_pool_size)
     masses = rng.choice(CATEGORIES["thermal_mass"], size=candidate_pool_size)
 
@@ -238,21 +306,32 @@ def recommend(
     f_solar = -useful_solars
 
     # Constraints filtering
+    panel_weights = np.array([
+        max(
+            (materials_db.get(walls[i]).weight if materials_db.get(walls[i]) else 0.0),
+            (materials_db.get(roofs[i]).weight if materials_db.get(roofs[i]) else 0.0)
+        )
+        for i in range(candidate_pool_size)
+    ])
+    c_panel_weight = panel_weights <= max_panel_weight * 1.01
+
     c_cost = costs <= max_cost * 1.05
     c_weight = weights <= max_weight * 1.05
     c_overheat = max_temps <= (comfort_max_temp + 1.5)
     c_comfort = comfort_pcts >= (min_comfort - 5.0)
 
-    feasible_mask = c_cost & c_weight & c_overheat & c_comfort
+    feasible_mask = c_cost & c_weight & c_overheat & c_comfort & c_panel_weight
     feasible_indices = np.where(feasible_mask)[0]
 
     if len(feasible_indices) < 10:
-        # Relax constraints to avoid empty results
-        feasible_mask = c_cost & c_weight
+        # Relax constraints to avoid empty results while preserving panel weight
+        feasible_mask = c_cost & c_weight & c_panel_weight
         feasible_indices = np.where(feasible_mask)[0]
 
     if len(feasible_indices) == 0:
-        feasible_indices = np.arange(candidate_pool_size)
+        feasible_indices = np.where(c_panel_weight)[0]
+        if len(feasible_indices) == 0:
+            feasible_indices = np.arange(candidate_pool_size)
 
     # 6. Non-dominated sorting over feasible pool
     F_sub = np.column_stack([
@@ -328,6 +407,10 @@ def recommend(
             length=round(float(lengths[global_idx]), 2),
             width=round(float(widths[global_idx]), 2),
             height=round(float(heights[global_idx]), 2),
+            shelter_purpose=shelter_purpose,
+            shelter_permanence=shelter_permanence,
+            deployment_method=deployment_method,
+            hardening=hardening,
         )
         phys = simulate(cand_params, norm_climate)
 
@@ -363,6 +446,10 @@ def recommend(
                 "length": round(float(lengths[global_idx]), 2),
                 "width": round(float(widths[global_idx]), 2),
                 "height": round(float(heights[global_idx]), 2),
+                "shelterPurpose": shelter_purpose,
+                "shelterPermanence": shelter_permanence,
+                "deploymentMethod": deployment_method,
+                "hardening": hardening,
             },
             "results": {
                 "uValue": phys.u_value,
@@ -380,6 +467,9 @@ def recommend(
                 "weight": phys.weight,
                 "cost": phys.cost,
                 "carbonFootprint": phys.carbon_footprint,
+                "maxPanelWeightKgM2": phys.max_panel_weight_kg_m2,
+                "comfortMinC": phys.comfort_min_c,
+                "comfortMaxC": phys.comfort_max_c,
                 "estimated": True,
             },
             "tradeoffNotes": "",

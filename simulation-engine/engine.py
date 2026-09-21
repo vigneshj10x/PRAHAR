@@ -88,6 +88,14 @@ class SimulationParams:
     ach: float = 0.5                             # Air changes per hour
     greenhouse_mode: bool = False                # High-glazing experimental mode for agricultural validation only (up to 95% aperture)
     n_occupants: Optional[int] = None            # Occupant count (None -> defaults to internal_gain_w, e.g. 4 for CFD validation)
+    shelter_purpose: str = "troop_habitation"   # troop_habitation | command_post_c4i | ammunition_storage | medical_facility | maintenance_hangar | logistics_storage
+    shelter_permanence: str = "semi_permanent"  # hasty | semi_permanent | permanent
+    deployment_method: str = "road_bound"       # road_bound | heliborne | porter_carried
+    hardening: str = "non_ballistic"            # non_ballistic | small_arms | artillery_hardened
+    build_start_date: Optional[str] = None      # ISO date string e.g. "2028-03-01"
+    build_duration_years: int = 1               # operational years
+    available_materials: Optional[List[str]] = None # material availability whitelist
+    shelter_type: Optional[str] = None          # DRDO shelter type ID
 
 
 @dataclass
@@ -111,11 +119,14 @@ class SimulationResult:
     solar_gain: float                            # Average solar thermal gain (W/m²)
     heat_loss: float                             # Average fabric + infiltration loss (W/m², negative)
     heating_demand: float                        # kWh/day required for 18°C setpoint
-    comfort_percent: float                       # % of day within comfort band (18°C - 24°C)
+    comfort_percent: float                       # % of day within comfort band (18°C - 24°C or purpose override)
     comfort_hours_5c: float                      # Hours per day above emergency survivability threshold (>5°C)
     weight: float                                # Total envelope weight (kg)
     cost: float                                  # Total estimated envelope cost (INR ₹)
     carbon_footprint: float                      # Total embodied carbon (kg CO2e)
+    max_panel_weight_kg_m2: float = 999.0        # Deployment logistics weight capacity constraint
+    comfort_min_c: float = 5.0                   # Purpose-specific lower comfort bound
+    comfort_max_c: float = 24.0                  # Purpose-specific upper comfort bound
     estimated: bool = False                      # False for physical simulation solver
 
 
@@ -248,11 +259,15 @@ class ReducedOrderThermalModel:
         r_wall_other_total = self.R_SI + r_wall_substrate + r_ins + self.r_se_other
         u_wall_other = 1.0 / max(0.05, r_wall_other_total)
 
+        # 4B. Hardening additional roof resistance
+        hardening = getattr(self.params, "hardening", "non_ballistic") or "non_ballistic"
+        additional_r_roof = 1.0 if hardening == "artillery_hardened" else 0.0
+
         t_roof_m = self.roof_mat.thickness_m
         k_roof = max(0.001, self.roof_mat.thermal_conductivity)
         r_roof_substrate = t_roof_m / k_roof
         r_roof_ins = (t_ins_m * 1.25) / k_ins if t_ins_m > 0 else 0.0
-        r_roof_total = self.R_SI + r_roof_substrate + r_roof_ins + self.r_se_roof
+        r_roof_total = self.R_SI + r_roof_substrate + r_roof_ins + self.r_se_roof + additional_r_roof
         u_roof = 1.0 / max(0.05, r_roof_total)
 
         u_glaze = self.glazing_u_value
@@ -313,7 +328,16 @@ class ReducedOrderThermalModel:
             "high": 2.5
         }.get(str(self.params.thermal_mass).lower(), 1.5)
 
-        c_solid = mass_wall_active * self.wall_mat.specific_heat * mass_scale
+        # 4B. Hardening thermal mass multiplier
+        hardening = getattr(self.params, "hardening", "non_ballistic") or "non_ballistic"
+        if hardening == "artillery_hardened":
+            hardening_mult = 3.5
+        elif hardening == "small_arms":
+            hardening_mult = 1.2
+        else:
+            hardening_mult = 1.0
+
+        c_solid = mass_wall_active * self.wall_mat.specific_heat * mass_scale * hardening_mult
 
         mass_pcm_kg = 0.0
         if self.wall_mat.is_pcm:
@@ -343,20 +367,58 @@ class ReducedOrderThermalModel:
             opaque_other = max(0.0, self.geometry.wall_area_total - self.geometry.south_facing_area)
             roof_area = self.geometry.roof_area
 
-        # IMPROVEMENT 1: Two-node stratified temperature model
-        # Node 1: Occupied zone (floor to 1.8m height) = T_indoor
-        # Node 2: Ceiling plume (1.8m to apex) = T_ceiling = T_indoor + stratification_delta
-        # Stratification delta formula calibrated to Fluent CFD observed 2-3°C vertical stratification:
-        # stratification_delta = 0.8 + (0.55 * building_height) gives ~2.18°C for 2.5m shelter height
+        # Two-node stratified temperature model
         b_height = getattr(self.geometry, "height", 2.5)
         stratification_delta = 0.8 + (0.55 * b_height)
 
-        # IMPROVEMENT 6: Occupant heat gain refinement per Domain 4 research
-        # Sensible heat: 80W per occupant in extreme cold (cold-induced thermogenesis)
-        if self.params.n_occupants is not None:
-            q_internal = float(self.params.n_occupants) * 80.0
+        # 4A. Purpose-based internal heat gain and comfort thresholds
+        purpose = getattr(self.params, "shelter_purpose", "troop_habitation") or "troop_habitation"
+        n_occ = self.params.n_occupants if self.params.n_occupants is not None else 4
+        ach_multiplier = 1.0
+        comfort_min_override = 5.0
+        comfort_max_override = 24.0
+
+        if purpose == "troop_habitation":
+            q_internal = float(n_occ * 80.0)
+            comfort_min_override = 5.0
+        elif purpose == "command_post_c4i":
+            q_electronics = float(n_occ * 80.0) + 500.0
+            q_internal = q_electronics
+            comfort_min_override = 15.0
+        elif purpose == "ammunition_storage":
+            q_internal = 0.0
+            comfort_min_override = 5.0
+            comfort_max_override = 25.0
+        elif purpose == "medical_facility":
+            q_internal = float(n_occ * 80.0) + 300.0
+            comfort_min_override = 18.0
+        elif purpose == "maintenance_hangar":
+            q_internal = float(n_occ * 80.0)
+            ach_multiplier = 3.0
+            comfort_min_override = 2.0
+        elif purpose == "logistics_storage":
+            q_internal = float(n_occ * 80.0) + 50.0
+            comfort_min_override = 0.0
         else:
             q_internal = float(getattr(self.params, "internal_gain_w", 220.0))
+
+        # 4C. Permanence -> Infiltration Multiplier
+        permanence = getattr(self.params, "shelter_permanence", "semi_permanent") or "semi_permanent"
+        if permanence == "hasty":
+            ach_permanence_mult = 2.5
+        elif permanence == "semi_permanent":
+            ach_permanence_mult = 1.3
+        else:
+            ach_permanence_mult = 1.0
+
+        # 4D. Deployment logistics weight limits
+        deployment = getattr(self.params, "deployment_method", "road_bound") or "road_bound"
+        if deployment == "porter_carried":
+            max_panel_weight = 8.0
+        elif deployment == "heliborne":
+            max_panel_weight = 30.0
+        else:
+            max_panel_weight = 999.0
 
         dt_sec = 60.0
         total_hours = 72
@@ -371,7 +433,7 @@ class ReducedOrderThermalModel:
         comfort_count = 0
         comfort_5c_count = 0
 
-        # Ground snow cover reflection (Domain 1 research)
+        # Ground snow cover reflection
         snow_covered = getattr(self.climate, "snow_covered", False)
         r_ground = 0.80 if snow_covered else 0.20
         lat_abs = abs(self.climate.lat)
@@ -391,7 +453,6 @@ class ReducedOrderThermalModel:
             else:
                 g_south = g_horiz * f_south_effective if g_horiz > 0 else 0.0
 
-            # IMPROVEMENT 3: Diurnal glazing mode switching
             ir_trap = self.ir_trapping_factor
             if g_horiz > 50.0:
                 q_solar_glaze = glazing_area * self.glazing_shgc * g_south
@@ -406,7 +467,6 @@ class ReducedOrderThermalModel:
             alpha_roof = self.roof_mat.solar_absorptivity
             lw_alt = self.longwave_alt_factor
 
-            # IMPROVEMENT 2: Directional sol-air temperatures
             t_sol_south = t_out + (alpha_wall * g_south - 0.9 * 30.0 * lw_alt) / self.h_south
             t_sol_roof = t_out + (alpha_roof * g_horiz - 0.9 * 60.0 * lw_alt) / self.h_roof
             t_sol_other = t_out + (alpha_wall * (g_horiz * 0.2) - 0.9 * 20.0 * lw_alt) / self.h_other
@@ -414,19 +474,19 @@ class ReducedOrderThermalModel:
             delta_t_buoyant = max(0.0, t_current - t_out)
             t_avg_k = ((t_current + t_out) / 2.0) + 273.15
 
+            base_ach = self.params.ach * ach_permanence_mult * ach_multiplier
             if delta_t_buoyant > 0.1:
                 c_d = 0.62
                 h_stack = max(1.0, self.geometry.height * 0.6)
                 a_vent = max(0.01 * self.geometry.floor_area, 0.05 * glazing_area)
                 v_buoyancy_m3_s = c_d * a_vent * math.sqrt((2.0 * 9.81 * h_stack * delta_t_buoyant) / max(200.0, t_avg_k))
                 ach_buoyancy = (v_buoyancy_m3_s * 3600.0) / max(1.0, self.geometry.volume)
-                ach_effective = self.params.ach + min(8.0, ach_buoyancy)
+                ach_effective = base_ach + min(8.0, ach_buoyancy)
             else:
-                ach_effective = self.params.ach
+                ach_effective = base_ach
 
             h_inf = (self.geometry.volume * ach_effective / 3600.0) * self.air_density * self.AIR_CP
 
-            # Conductive heat exchanges with directional parameters
             q_cond_south = u_wall_south * opaque_south * (t_sol_south - t_current)
             q_cond_other = u_wall_other * opaque_other * (t_sol_other - t_current)
             q_cond_roof  = u_roof * roof_area * (t_sol_roof - t_current)
@@ -457,8 +517,6 @@ class ReducedOrderThermalModel:
             t_current += dt_indoor
 
             if step >= int((48 * 3600) / dt_sec) and minute_in_hour == 0:
-                # IMPROVEMENT 1: Volume-averaged temperature reported to user matching Fluent CFD domain average:
-                # T_avg = (T_indoor * 0.65) + (T_ceiling * 0.35)
                 t_reported = (t_current * 0.65) + ((t_current + stratification_delta) * 0.35)
 
                 heat_loss_flux = (q_cond_south + q_cond_other + q_cond_roof + q_cond_glaze + q_inf) / max(1.0, self.geometry.envelope_area)
@@ -484,7 +542,7 @@ class ReducedOrderThermalModel:
                 solar_gains.append(solar_gain_flux)
                 heating_demands.append(q_heat_kwh)
 
-                if 18.0 <= t_reported <= 24.0:
+                if comfort_min_override <= t_reported <= comfort_max_override:
                     comfort_count += 1
                 if t_reported >= 5.0:
                     comfort_5c_count += 1
@@ -530,6 +588,9 @@ class ReducedOrderThermalModel:
             weight=round(shell_weight, 1),
             cost=round(shell_cost, 0),
             carbon_footprint=round(shell_carbon, 1),
+            max_panel_weight_kg_m2=max_panel_weight,
+            comfort_min_c=comfort_min_override,
+            comfort_max_c=comfort_max_override,
             estimated=False
         )
 
